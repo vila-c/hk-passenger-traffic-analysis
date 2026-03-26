@@ -153,7 +153,7 @@ Python · pandas · NumPy · scikit-learn · matplotlib · seaborn · Plotly · 
 
 ## 📊 Data Source
 
-[Statistics on Daily Passenger Traffic]([https://data.gov.hk/en-data/dataset/hk-immd-set4-statistics-daily-passenger-traffic](https://data.gov.hk/en-data/dataset/hk-immd-set5-statistics-daily-passenger-traffic)) · Hong Kong Immigration Department · data.gov.hk · For educational purposes only.
+[Statistics on Daily Passenger Traffic](https://data.gov.hk/en-data/dataset/hk-immd-set5-statistics-daily-passenger-traffic) · Hong Kong Immigration Department · data.gov.hk · For educational purposes only.
 
 > This is an official government open dataset covering daily passenger traffic at all Hong Kong boundary control points. The dataset spans 2021–2025 and includes breakdowns by control point, direction (Arrival/Departure), and traveller type (HK Residents, Mainland Visitors, Other Visitors).
 
