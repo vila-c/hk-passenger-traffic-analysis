@@ -4,10 +4,10 @@
 ![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-FF4B4B?logo=streamlit&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-An end-to-end data science project analysing **56,424 daily passenger traffic records** across Hong Kong's 17 border control points to uncover post-COVID recovery patterns, build predictive models, and surface actionable travel demand insights.
+An end-to-end data science project analysing **56,424 daily passenger traffic records** across Hong Kong's 17 border control points to uncover post-COVID recovery patterns, build predictive models, and surface actionable travel demand insights. Holiday features incorporate **both Hong Kong and Mainland China public holidays** (2023–2026) to capture cross-border demand drivers from both sides.
 
 ## 🌐 Live Demo
-👉 [View Interactive Dashboard](#) 
+👉 [View Interactive Dashboard](#) *(coming soon)*
 
 > Features an interactive **Traffic Explorer** — filter by control point, date range, and visitor type to visualise cross-border flow trends and model predictions.
 
@@ -41,8 +41,13 @@ Raw Data (56,424 records · 17 control points · 2021–2025)
         ↓
 Data Cleaning & Feature Engineering        [01_Cleaning]
   · Removed COVID closure period (2021–2022, near-zero traffic)
-  · Holiday labelling (93 public holidays)
-  · Festival flags (Is_CNY, Is_GoldenWeek, Is_Easter)
+  · Dual holiday labelling: HK public holidays (gov.hk)
+    + Mainland China public holidays (gov.cn), 2023–2026
+  · Festival flags (Is_CNY, Is_GoldenWeek, Is_Easter,
+    Is_DragonBoat, Is_MidAutumn, Is_NationalDay, Is_ChingMing)
+  · Mainland-specific flags (Is_ML_SpringFestival,
+    Is_ML_GoldenWeek, Is_ML_DragonBoat, Is_ML_MidAutumn)
+  · Combined flag: Is_Any_Holiday (HK or Mainland)
   · Datetime features (DayOfWeek, Month, Year, IsWeekend)
         ↓
 Exploratory Data Analysis                  [02_EDA]
@@ -76,7 +81,7 @@ Streamlit Dashboard                        [app/dashboard.py]
 
 | File | Description |
 |------|-------------|
-| `notebooks/01_Data_Cleaning_and_Preparation.ipynb` | Data wrangling, holiday labelling, festival flags, feature engineering |
+| `notebooks/01_Data_Cleaning_and_Preparation.ipynb` | Data wrangling, HK + Mainland dual holiday labelling, festival flags, feature engineering |
 | `notebooks/02_EDA_and_Statistics.ipynb` | EDA, statistical testing, seasonal decomposition, control point analysis |
 | `notebooks/03_Classification_Models.ipynb` | Decision Tree & Logistic Regression, AUC, confusion matrix, CV |
 | `notebooks/04_Regression_Analysis.ipynb` | Linear Regression, R², RMSE, residual diagnostics |
@@ -98,6 +103,7 @@ Streamlit Dashboard                        [app/dashboard.py]
 - **K-Means reveals 4 distinct traffic regimes** — Holiday Peak, Weekend Peak, Regular Weekday, and Early Recovery clusters
 - **Top association rule: {Weekend, Year2025} → {VeryHighTraffic}** — confidence 0.99, lift 3.51, indicating near-certain high traffic on 2025 weekends
 - **Decision Tree CV gap (84.55% vs 66.61%)** — suggests moderate overfitting; Logistic Regression generalises better (83.18% vs 76.55%)
+- **Dual-holiday effect:** When HK and Mainland holidays overlap (e.g., CNY, National Day), traffic surges are amplified compared to single-region holidays
 
 ---
 
@@ -153,9 +159,22 @@ Python · pandas · NumPy · scikit-learn · matplotlib · seaborn · Plotly · 
 
 ## 📊 Data Source
 
-[Statistics on Daily Passenger Traffic](https://data.gov.hk/en-data/dataset/hk-immd-set5-statistics-daily-passenger-traffic) · Hong Kong Immigration Department · data.gov.hk · For educational purposes only.
+[Statistics on Daily Passenger Traffic](https://data.gov.hk/en-data/dataset/hk-immd-set4-statistics-daily-passenger-traffic) · Hong Kong Immigration Department · data.gov.hk · For educational purposes only.
 
 > This is an official government open dataset covering daily passenger traffic at all Hong Kong boundary control points. The dataset spans 2021–2025 and includes breakdowns by control point, direction (Arrival/Departure), and traveller type (HK Residents, Mainland Visitors, Other Visitors).
+
+**Public Holiday Sources:**
+
+| Region | Years | Source |
+|--------|-------|--------|
+| Hong Kong | 2023 | [gov.hk/holiday/2023](https://www.gov.hk/en/about/abouthk/holiday/2023.htm) |
+| Hong Kong | 2024 | [gov.hk/holiday/2024](https://www.gov.hk/en/about/abouthk/holiday/2024.htm) |
+| Hong Kong | 2025 | [gov.hk/holiday/2025](https://www.gov.hk/en/about/abouthk/holiday/2025.htm) |
+| Hong Kong | 2026 | [gov.hk/holiday/2026](https://www.gov.hk/en/about/abouthk/holiday/2026.htm) |
+| Mainland China | 2023 | [english.www.gov.cn](https://english.www.gov.cn/policies/latestreleases/202212/09/content_WS63920eafc6d0a757729e422c.html) |
+| Mainland China | 2024 | [english.www.gov.cn](https://english.www.gov.cn/policies/latestreleases/202310/25/content_WS65387be8c6d0868f4e8e0a04.html) |
+| Mainland China | 2025 | [english.www.gov.cn](https://english.www.gov.cn/policies/latestreleases/202411/12/content_WS67331db5c6d0868f4e8ecd92.html) |
+| Mainland China | 2026 | [english.www.gov.cn](https://english.www.gov.cn/policies/featured/202511/04/content_WS6909c915c6d00ca5f9a074f7.html) |
 
 ---
 
