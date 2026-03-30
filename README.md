@@ -116,20 +116,22 @@ K-Means k=4, Silhouette Score = 0.2845
 
 ## Holiday Feature Engineering
 
-A key contribution of this project is the dual-region holiday feature set, capturing the unique dynamics of Hong Kong--Mainland China cross-border travel:
+A key contribution of this project is the dual-region holiday feature set, capturing the unique dynamics of Hong Kong--Mainland China cross-border travel.
 
-| Feature | Description | Count (in dataset) |
-|---------|-------------|--------------------|
-| `Is_HK_Holiday` | Hong Kong public holidays and their observed days | 52 days |
+> **Scope note:** All day counts below are totals across the **post-reopening study period** (2023-01-08 to 2026-03-08). Annual counts vary — for example, Hong Kong gazetted 17–20 public holidays per year, and Mainland China's extended festival arrangements differ annually. Refer to NB01 for the full per-year holiday lists and sources.
+
+| Feature | Description | Total in study period |
+|---------|-------------|----------------------|
+| `Is_HK_Holiday` | Hong Kong gazetted public holidays and their observed days | 52 days |
 | `Is_ML_Holiday` | Mainland China public holidays (including extended Golden Week, Spring Festival) | 82 days |
 | `Is_Both_Holiday` | Days that are holidays in **both** regions simultaneously | 29 days |
 | `Is_Any_Holiday` / `Is_Holiday` | Union of HK and ML holidays (either or both). `Is_Holiday` is an alias for `Is_Any_Holiday` | 105 days |
 
 **Festival-specific flags:**
 
-| Feature | Description | Count |
-|---------|-------------|-------|
-| `Is_CNY` | Chinese New Year / Spring Festival period | 11 days |
+| Feature | Description | Total in study period |
+|---------|-------------|----------------------|
+| `Is_CNY` | Chinese New Year / Spring Festival period (HK gazetted days) | 11 days |
 | `Is_GoldenWeek` | Mainland Golden Week (National Day, 1--7 October) | 21 days |
 | `Is_Easter` | Easter holiday period (Good Friday through Easter Monday) | 12 days |
 
@@ -208,7 +210,7 @@ The interactive dashboard (`app.py`) provides stakeholders with a visual interfa
 | Data Processing | pandas, NumPy |
 | Visualisation | Matplotlib, Seaborn, Plotly |
 | Machine Learning | scikit-learn |
-| Association Rules | mlxtend (Apriori) |
+| Association Rules | efficient-apriori |
 | Statistical Tests | SciPy |
 | Dashboard | Streamlit |
 | Notebooks | Jupyter Notebook |
@@ -218,9 +220,24 @@ The interactive dashboard (`app.py`) provides stakeholders with a visual interfa
 
 ## Data Source
 
-Statistics on Daily Passenger Traffic, published by the **Hong Kong Immigration Department** and distributed via [data.gov.hk](https://data.gov.hk/en-data/dataset/hk-immd-set4-statistics-daily-passenger-traffic).
+**Traffic dataset:** Statistics on Daily Passenger Traffic, published by the **Hong Kong Immigration Department** and distributed via [data.gov.hk](https://data.gov.hk/en-data/dataset/hk-immd-set4-statistics-daily-passenger-traffic). Provided under the [Hong Kong Government Open Data Terms of Use](https://data.gov.hk/en/terms-and-conditions).
 
-The dataset is provided under the [Hong Kong Government Open Data Terms of Use](https://data.gov.hk/en/terms-and-conditions).
+**Mainland China public holiday schedules:** Official announcements published by the **State Council of the People's Republic of China** via [english.www.gov.cn](https://english.www.gov.cn/). Holiday dates for 2023–2026 were manually compiled from annual government notices.
+
+---
+
+## Public Holiday Sources
+
+| Region | Years | Source |
+|--------|-------|--------|
+| Hong Kong | 2023 | [gov.hk/holiday/2023](https://www.gov.hk/en/about/abouthk/holiday/2023.htm) |
+| Hong Kong | 2024 | [gov.hk/holiday/2024](https://www.gov.hk/en/about/abouthk/holiday/2024.htm) |
+| Hong Kong | 2025 | [gov.hk/holiday/2025](https://www.gov.hk/en/about/abouthk/holiday/2025.htm) |
+| Hong Kong | 2026 | [gov.hk/holiday/2026](https://www.gov.hk/en/about/abouthk/holiday/2026.htm) |
+| Mainland China | 2023 | [english.www.gov.cn](https://english.www.gov.cn/) |
+| Mainland China | 2024 | [english.www.gov.cn](https://english.www.gov.cn/) |
+| Mainland China | 2025 | [english.www.gov.cn](https://english.www.gov.cn/) |
+| Mainland China | 2026 | [english.www.gov.cn](https://english.www.gov.cn/) |
 
 ---
 
@@ -228,3 +245,10 @@ The dataset is provided under the [Hong Kong Government Open Data Terms of Use](
 
 This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
 See [LICENSE](LICENSE) for details.
+
+---
+
+## Author
+
+**Vila Chung** · BASc Social Data Science · The University of Hong Kong · 2025
+[GitHub](https://github.com/vila-c)
