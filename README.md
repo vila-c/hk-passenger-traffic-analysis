@@ -6,6 +6,7 @@
 [![Framework](https://img.shields.io/badge/Framework-CRISP--DM-009688)]()
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Data](https://img.shields.io/badge/Records-56%2C424+-green)]()
+[![Dashboard](https://img.shields.io/badge/Live_Demo-Streamlit-FF4B4B?logo=streamlit)](https://hk-passenger-traffic-analysis.streamlit.app/)
 
 A comprehensive data science project analysing daily cross-border passenger traffic at Hong Kong's 17 border control points from 2021 to 2025, following the CRISP-DM methodology. The analysis covers the full post-COVID recovery trajectory -- from near-zero crossings during border closures through the reopening on 8 January 2023 to present-day travel patterns.
 
@@ -209,6 +210,8 @@ The dashboard will open in your browser at `http://localhost:8501`.
 ---
 
 ## Streamlit Dashboard
+
+**[▶ Launch Live Dashboard](https://hk-passenger-traffic-analysis.streamlit.app/)**
 
 The interactive dashboard (`app.py`) provides stakeholders with a visual interface to explore the analysis results without running notebooks. Features include:
 
