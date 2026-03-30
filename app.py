@@ -150,6 +150,56 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 with tab1:
     st.header("Traffic Overview")
 
+    # ── Executive Summary ──
+    st.markdown(
+        """
+        #### At a Glance
+
+        This dashboard analyses **daily cross-border passenger traffic** between
+        Hong Kong and Mainland China from **8 January 2023 to 8 March 2025**.
+
+        - **Why this period?** Hong Kong's border with the Mainland fully reopened
+          on 8 January 2023 after nearly three years of COVID restrictions.
+          Data before that date is near-zero and not comparable. Year 2026 only
+          has about two months of records — too little for meaningful yearly
+          comparison — so it is excluded from the models (though included in raw
+          exploratory charts in the notebooks).
+        """
+    )
+
+    # Compute yearly summaries for the narrative
+    _yearly = df.groupby("Year")["Total"].agg(["mean", "count"])
+    _y23 = _yearly.loc[2023, "mean"] if 2023 in _yearly.index else 0
+    _y24 = _yearly.loc[2024, "mean"] if 2024 in _yearly.index else 0
+    _y25 = _yearly.loc[2025, "mean"] if 2025 in _yearly.index else 0
+    _g24 = (_y24 - _y23) / _y23 * 100 if _y23 else 0
+    _g25 = (_y25 - _y24) / _y24 * 100 if _y24 else 0
+
+    _wkend_m = df.loc[df["Is_Weekend"] == 1, "Total"].mean()
+    _wkday_m = df.loc[df["Is_Weekend"] == 0, "Total"].mean()
+    _gap = (_wkend_m - _wkday_m) / _wkday_m * 100 if _wkday_m else 0
+
+    st.markdown(
+        f"""
+        | Year | Avg Daily Passengers | Year-on-Year Change |
+        |------|---------------------:|--------------------:|
+        | 2023 | {_y23:,.0f} | — (baseline, border reopened) |
+        | 2024 | {_y24:,.0f} | +{_g24:.1f}% |
+        | 2025 | {_y25:,.0f} | +{_g25:.1f}% |
+
+        **Key patterns:**
+        - Traffic has grown strongly each year as cross-border travel normalised.
+        - **Weekends** average about **{_gap:.0f}%** more passengers than weekdays —
+          the single biggest short-term driver.
+        - **Public holidays** — especially when Hong Kong and Mainland holidays
+          overlap — produce the highest single-day peaks.
+        - **Chinese New Year** and **Golden Week** (Mainland National Day, 1–7 Oct)
+          are the most impactful festival periods.
+        """
+    )
+
+    st.markdown("---")
+
     # Time series with 7-day MA
     ts = fdf.sort_values("Date").copy()
     ts["MA7"] = ts["Total"].rolling(7, min_periods=1).mean()
@@ -173,6 +223,13 @@ with tab1:
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
     st.plotly_chart(fig_ts, use_container_width=True)
+
+    st.info(
+        "**Reading this chart:** The pale blue line is the raw daily count — it "
+        "fluctuates heavily because weekends and holidays create regular spikes. "
+        "The red line smooths these out over 7 days so you can see the longer-term "
+        "trend: a clear upward trajectory from early 2023 through 2025."
+    )
 
     # Day of week average
     col_a, col_b = st.columns(2)
@@ -205,12 +262,32 @@ with tab1:
             yoy[c] = yoy[c].apply(lambda x: f"{x:,.0f}")
         st.markdown("#### Year-over-Year Summary")
         st.dataframe(yoy, use_container_width=True)
+        st.caption(
+            "Each row summarises one calendar year. "
+            "Mean = average daily passengers; Std = how much daily counts vary."
+        )
 
 # ============================================================
 # TAB 2 - HOLIDAY ANALYSIS
 # ============================================================
 with tab2:
     st.header("Holiday & Festival Analysis")
+
+    st.markdown(
+        """
+        This section compares traffic across different day types. Key terms:
+
+        - **CNY** — Chinese New Year / Spring Festival (late Jan–Feb), celebrated
+          in both Hong Kong and the Mainland.
+        - **Golden Week** — Mainland China's National Day holiday (1–7 October).
+          Hong Kong does not have this holiday, so cross-border traffic surges as
+          Mainland visitors travel south.
+        - **Easter** — A Hong Kong public holiday (Good Friday to Easter Monday);
+          not a holiday on the Mainland.
+        - **Is Holiday** — Any public holiday in *either* Hong Kong or the Mainland
+          (or both).
+        """
+    )
 
     col_h1, col_h2 = st.columns(2)
 
@@ -250,6 +327,14 @@ with tab2:
         )
         st.plotly_chart(fig_monthly, use_container_width=True)
 
+    st.info(
+        "**Takeaway:** Regular weekdays see the lowest traffic. Weekends alone "
+        "push traffic up significantly, but festival periods — especially "
+        "Chinese New Year and Easter — produce the highest averages. "
+        "The monthly chart shows traffic climbing each year, confirming that "
+        "post-reopening recovery continued into 2025."
+    )
+
     # Festival detail table
     st.markdown("#### Festival Detail Table")
     fest_detail = fdf.groupby("Festival_Type").agg(
@@ -268,7 +353,14 @@ with tab2:
 # ============================================================
 with tab3:
     st.header("Classification Models (NB03 Results)")
-    st.markdown("Two models trained on **10 temporal and holiday features** to classify traffic as High/Low.")
+    st.markdown(
+        """
+        **What this does:** We trained two models to predict whether a given day
+        will have *high* or *low* cross-border traffic, using only calendar
+        information (year, month, day of week, whether it is a weekend or
+        holiday, etc.) — no real-time data needed.
+        """
+    )
 
     # Hardcoded metrics
     dt_metrics = {
@@ -335,6 +427,14 @@ with tab3:
         )
         st.plotly_chart(fig_radar, use_container_width=True)
 
+    st.info(
+        "**Takeaway:** The Decision Tree correctly classifies about **90%** of days. "
+        "It outperforms Logistic Regression on accuracy and precision, while both "
+        "models achieve similar AUC (≈ 0.93), meaning they rank days almost "
+        "equally well. The radar chart makes it easy to compare: the Decision Tree "
+        "(blue) covers a larger area."
+    )
+
     # Confusion matrices side by side
     st.markdown("#### Confusion Matrices")
     cm_col1, cm_col2 = st.columns(2)
@@ -368,6 +468,12 @@ with tab3:
         )
         st.plotly_chart(fig_cm_lr, use_container_width=True)
 
+    st.caption(
+        "Each matrix shows how many days the model got right and wrong. "
+        "Diagonal cells (top-left, bottom-right) are correct predictions. "
+        "Off-diagonal cells are errors."
+    )
+
     # Feature Importance
     st.markdown("#### Decision Tree Feature Importance")
     fi = {
@@ -384,6 +490,14 @@ with tab3:
     )
     fig_fi.update_layout(template="plotly_white", height=400, showlegend=False)
     st.plotly_chart(fig_fi, use_container_width=True)
+
+    st.success(
+        "**Key finding:** **Year** (37.5%) and **Day of Week** (30.2%) together "
+        "account for about two-thirds of the model's decision-making power. "
+        "This means the most important factors are *which year* it is "
+        "(reflecting the overall recovery trend) and *which day of the week* "
+        "(reflecting weekend vs weekday patterns)."
+    )
 
     # Interactive Predictor
     st.markdown("---")
@@ -460,7 +574,14 @@ with tab3:
 # ============================================================
 with tab4:
     st.header("Regression Analysis (NB04 Results)")
-    st.markdown("Linear regression predicting daily total passenger count from temporal and holiday features.")
+    st.markdown(
+        """
+        **What this does:** Instead of just *high or low*, this model estimates
+        the **actual number** of passengers on a given day. It uses the same
+        calendar features and outputs a concrete figure (e.g. "about 850,000
+        passengers").
+        """
+    )
 
     # Hardcoded metrics
     reg_col1, reg_col2 = st.columns(2)
@@ -509,6 +630,20 @@ with tab4:
         )
         st.plotly_chart(fig_coef, use_container_width=True)
 
+    st.info(
+        "**Reading the coefficients:** Each bar shows how much a feature shifts "
+        "the predicted passenger count (after standardisation). "
+        "**Year (+151,639)** is by far the strongest: on average, each successive "
+        "year adds ~152K daily passengers, reflecting the post-COVID recovery. "
+        "**Is_Weekend (+87,662)** is the second strongest — weekends consistently "
+        "bring ~88K extra travellers.\n\n"
+        "The negative bars for Is_CNY and Is_GoldenWeek do **not** mean these "
+        "festivals reduce traffic. They are a statistical artefact: because "
+        "CNY and Golden Week days are *already* counted under the broader "
+        "Is_Holiday feature, the model 'double-counts' and subtracts the overlap. "
+        "In reality, these festivals see some of the highest traffic of the year."
+    )
+
     # Predicted vs Actual scatter (simulated from data)
     st.markdown("#### Predicted vs Actual (Approximation)")
 
@@ -550,6 +685,11 @@ with tab4:
         fig_scatter.update_layout(template="plotly_white", height=450)
         st.plotly_chart(fig_scatter, use_container_width=True)
 
+    st.caption(
+        "Each dot is one day. If the model were perfect, all dots would sit on "
+        "the dashed red line. The spread around the line shows prediction error."
+    )
+
     # Limitation note
     st.warning(
         "**Limitation: Multicollinearity.** Several features (Month/Quarter, Is_Weekend/DayOfWeek) "
@@ -564,6 +704,15 @@ with tab4:
 # ============================================================
 with tab5:
     st.header("K-Means Clustering (NB05 Results)")
+
+    st.markdown(
+        """
+        **What this does:** Rather than predicting a number, clustering groups
+        days that *behave similarly* into clusters. The algorithm found **4
+        distinct traffic regimes** — think of them as "types of days" that
+        recur throughout the study period.
+        """
+    )
 
     # Elbow and Silhouette
     k_values = [2, 3, 4, 5, 6, 7, 8]
@@ -604,6 +753,14 @@ with tab5:
         )
         st.plotly_chart(fig_sil, use_container_width=True)
 
+    st.caption(
+        "**How we chose 4 groups:** The left chart (Elbow) shows that adding "
+        "more groups beyond 4 gives diminishing returns. The right chart "
+        "(Silhouette) measures how well-separated the groups are — higher is "
+        "better. We picked k=4 as a good balance between simplicity and "
+        "meaningfulness."
+    )
+
     # Cluster Profiles
     st.markdown("#### Cluster Profiles (k=4)")
 
@@ -634,6 +791,19 @@ with tab5:
             )
 
     st.dataframe(cluster_profiles, use_container_width=True, hide_index=True)
+
+    st.info(
+        "**Takeaway:** The four groups tell a clear story:\n\n"
+        "- **Weekend Peak** has the highest average traffic (~1.02M) — "
+        "nearly all weekend days land here.\n"
+        "- **Early Recovery** captures the 29 days right after the border "
+        "reopened (Jan–Feb 2023) when holiday traffic was unusually high "
+        "relative to the still-recovering baseline.\n"
+        "- **Holiday Peak** (540 days) forms the largest group — a mix of "
+        "regular and holiday-adjacent weekdays with moderate-to-high traffic.\n"
+        "- **Regular Weekday** (244 days) represents the baseline: ordinary "
+        "working days with the lowest traffic."
+    )
 
     # Cluster scatter visualisation from data
     st.markdown("#### Cluster Distribution (Approximation)")
@@ -672,6 +842,21 @@ with tab5:
 # ============================================================
 with tab6:
     st.header("Association Rule Mining (NB05 Results)")
+
+    st.markdown(
+        """
+        **What this does:** Association rule mining discovers "if X then Y"
+        patterns in the data — similar to how a supermarket finds that customers
+        who buy bread also tend to buy butter.  Here we look for combinations of
+        calendar features that reliably predict traffic levels.
+
+        - **Support** — how often the pattern appears (higher = more common).
+        - **Confidence** — when the "if" part is true, how often the "then" part
+          follows (higher = more reliable).
+        - **Lift** — how much more likely the pattern is than chance
+          (>1 = positive association).
+        """
+    )
 
     # Top 20 rules hardcoded
     rules_data = [
@@ -746,6 +931,13 @@ with tab6:
             "- Interpretation: Early reopening winter period in 2023 had notably low traffic."
         )
 
+    st.markdown(
+        "**Takeaway:** The strongest patterns confirm what the other models found: "
+        "**weekends in 2025 almost guarantee very high traffic** (95% confidence), "
+        "while **winter 2023 was still in recovery** (70% confidence of low traffic). "
+        "Together, these rules paint a picture of rapid post-COVID normalisation."
+    )
+
     # Interactive Rule Explorer
     st.markdown("#### Interactive Rule Explorer")
     min_conf = st.slider("Minimum Confidence", 0.0, 1.0, 0.5, 0.05, key="arm_conf")
@@ -767,6 +959,7 @@ with tab6:
 # ============================================================
 st.markdown("---")
 st.markdown("### Tool Suitability Summary")
+st.caption("A quick comparison of the four analytical methods used in this project and what each one is best at.")
 
 tool_table = pd.DataFrame({
     "Analysis Task": [
