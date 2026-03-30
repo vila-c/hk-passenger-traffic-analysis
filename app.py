@@ -401,25 +401,34 @@ with tab3:
         p_quarter = st.selectbox("Quarter", [1, 2, 3, 4], index=1, key="pred_quarter")
     with pr_col3:
         p_weekend = st.checkbox("Is Weekend", value=p_dow >= 5, key="pred_wkend")
-        p_holiday = st.checkbox("Is Holiday", key="pred_holiday")
-        p_cny = st.checkbox("Is CNY", key="pred_cny")
+        p_holiday = st.checkbox("Is Holiday (any HK or Mainland public holiday)", key="pred_holiday")
+        p_both_holiday = st.checkbox("Is Both Holiday (HK + Mainland overlap)", key="pred_both")
+        p_cny = st.checkbox("Is CNY (Chinese New Year period)", key="pred_cny")
+        p_golden = st.checkbox("Is Golden Week (Mainland National Day, 1–7 Oct)", key="pred_golden")
+        p_easter = st.checkbox("Is Easter (Good Friday–Easter Monday)", key="pred_easter")
 
     # Simple heuristic based on feature importances
     score = 0.0
     # Year effect: 2025 high, 2023 low
     score += (p_year - 2023) / 2 * 0.375
-    # Weekend/Sat-Sun push high
+    # DayOfWeek: Sat-Sun push high
     score += (1 if p_dow >= 5 else 0) * 0.302
     # Quarter
     score += (p_quarter / 4) * 0.142
     # Month
     score += (p_month / 12) * 0.065
-    # Holiday
+    # Is_Holiday (any HK or Mainland)
     score += (1 if p_holiday else 0) * 0.062
-    # Weekend flag
+    # Is_Weekend flag
     score += (1 if p_weekend else 0) * 0.047
-    # CNY
+    # Is_CNY
     score += (1 if p_cny else 0) * 0.006
+    # Is_GoldenWeek (importance = 0.000, included for completeness)
+    score += (1 if p_golden else 0) * 0.000
+    # Is_Both_Holiday (importance = 0.000, included for completeness)
+    score += (1 if p_both_holiday else 0) * 0.000
+    # Is_Easter (importance = 0.000, included for completeness)
+    score += (1 if p_easter else 0) * 0.000
 
     prob_high = min(max(score, 0), 1)
     predicted_label = "High" if prob_high >= 0.45 else "Low"
