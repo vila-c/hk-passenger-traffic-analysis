@@ -3,877 +3,794 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
-# ── Page config ───────────────────────────────────────────────
+# ============================================================
+# PAGE CONFIG
+# ============================================================
 st.set_page_config(
     page_title="HK Cross-Border Traffic Analytics",
-    page_icon="🚂",
-    layout="wide"
+    page_icon="\U0001f682",
+    layout="wide",
 )
 
-# ── Load data ─────────────────────────────────────────────────
+# ============================================================
+# COLOUR PALETTE
+# ============================================================
+COLORS = {
+    "primary": "#1f77b4",
+    "secondary": "#ff7f0e",
+    "success": "#2ca02c",
+    "danger": "#d62728",
+    "purple": "#9467bd",
+    "teal": "#17becf",
+    "pink": "#e377c2",
+    "grey": "#7f7f7f",
+    "brown": "#8c564b",
+    "olive": "#bcbd22",
+}
+COLOR_SEQ = list(COLORS.values())
+
+# ============================================================
+# DATA LOADING
+# ============================================================
+
 @st.cache_data
 def load_data():
-    df = pd.read_csv("daily_traffic_processed.csv", parse_dates=["Date"])
-    # Filter to post-reopening period only
-    df = df[df["Date"] >= "2023-01-08"].copy()
-    df = df[df["Date"].dt.year <= 2025].copy()
-    df = df.sort_values("Date").reset_index(drop=True)
+    df = pd.read_csv(
+        "daily_traffic_processed.csv",
+        parse_dates=["Date"],
+    )
+    # Post-reopening filter
+    df = df[(df["Date"] >= "2023-01-08") & (df["Year"] <= 2025)].copy()
 
-    # Ensure required columns exist
-    if "Is_Weekend" not in df.columns:
-        df["Is_Weekend"] = (df["Date"].dt.dayofweek >= 5).astype(int)
-    if "Year" not in df.columns:
-        df["Year"] = df["Date"].dt.year
-    if "Month" not in df.columns:
-        df["Month"] = df["Date"].dt.month
-    if "DayOfWeek" not in df.columns:
-        df["DayOfWeek"] = df["Date"].dt.dayofweek
+    # Validate required columns
+    required_cols = [
+        "Is_HK_Holiday", "Is_ML_Holiday", "Is_Both_Holiday",
+        "Is_Any_Holiday", "Is_Holiday",
+        "Is_Weekend", "Is_CNY", "Is_GoldenWeek", "Is_Easter",
+        "Year", "Month", "DayOfWeek", "Quarter",
+    ]
+    missing = [c for c in required_cols if c not in df.columns]
+    if missing:
+        st.error(f"Missing columns: {missing}")
+        st.stop()
+
+    # Festival_Type classification
+    conditions = [
+        df["Is_CNY"] == 1,
+        df["Is_GoldenWeek"] == 1,
+        df["Is_Easter"] == 1,
+        df["Is_Holiday"] == 1,
+        df["Is_Weekend"] == 1,
+    ]
+    choices = ["CNY", "Golden Week", "Easter", "Other Holiday", "Regular Weekend"]
+    df["Festival_Type"] = np.select(conditions, choices, default="Weekday")
+
+    # Ensure DayName exists
     if "DayName" not in df.columns:
         df["DayName"] = df["Date"].dt.day_name()
 
-    # Festival classification
-    def classify_festival(row):
-        if row.get("Is_CNY", 0) == 1:
-            return "CNY"
-        elif row.get("Is_GoldenWeek", 0) == 1:
-            return "Golden Week"
-        elif row.get("Is_Easter", 0) == 1:
-            return "Easter"
-        elif row.get("Is_Holiday", 0) == 1:
-            return "Other Holiday"
-        elif row.get("Is_Weekend", 0) == 1:
-            return "Regular Weekend"
-        else:
-            return "Weekday"
-
-    df["Festival_Type"] = df.apply(classify_festival, axis=1)
     return df
+
 
 df = load_data()
 
-# ── Header ────────────────────────────────────────────────────
-st.title("🚂 Hong Kong Cross-Border Passenger Traffic Dashboard")
-st.markdown(
-    "**Author: Vila Chung** · HKU BASc Social Data Science · 2025 · "
-    "[GitHub](https://github.com/vila-c)"
-)
-st.caption(
-    "Dataset: Statistics on Daily Passenger Traffic · Hong Kong Immigration Department · "
-    "data.gov.hk · 56,424 records · 17 border control points · 2021–2025 · Educational use only."
-)
-st.divider()
+# ============================================================
+# SIDEBAR FILTERS
+# ============================================================
+st.sidebar.title("\U0001f50d Filters")
 
-# ── Sidebar filters ───────────────────────────────────────────
-st.sidebar.header("🔍 Filters")
-st.sidebar.markdown("Use the filters below to explore different segments of the data.")
+all_years = sorted(df["Year"].unique())
+sel_years = st.sidebar.multiselect("Year", all_years, default=all_years)
 
-year_options = sorted(df["Year"].unique().tolist())
-year_filter = st.sidebar.multiselect(
-    "Year",
-    options=year_options,
-    default=year_options
-)
+all_day_types = sorted(df["Festival_Type"].unique())
+sel_day_types = st.sidebar.multiselect("Day Type", all_day_types, default=all_day_types)
 
-day_type_options = ["Weekday", "Regular Weekend", "Other Holiday", "CNY", "Golden Week", "Easter"]
-day_type_filter = st.sidebar.multiselect(
-    "Day Type",
-    options=day_type_options,
-    default=day_type_options
-)
+mask = df["Year"].isin(sel_years) & df["Festival_Type"].isin(sel_day_types)
+fdf = df[mask].copy()
 
-# Apply filters
-filtered = df[
-    (df["Year"].isin(year_filter)) &
-    (df["Festival_Type"].isin(day_type_filter))
-].copy()
-
-st.sidebar.divider()
-st.sidebar.markdown(f"**Showing:** {len(filtered):,} days")
-if len(filtered) > 0:
-    st.sidebar.markdown(f"**Avg Daily Traffic:** {filtered['Total'].mean():,.0f}")
-    st.sidebar.markdown(f"**Date Range:** {filtered['Date'].min().date()} to {filtered['Date'].max().date()}")
-
-# ── KPI metrics ───────────────────────────────────────────────
-if len(filtered) > 0:
-    total_days    = len(filtered)
-    avg_traffic   = filtered["Total"].mean()
-    peak_day      = filtered.loc[filtered["Total"].idxmax(), "Date"].strftime("%d %b %Y")
-    peak_val      = filtered["Total"].max()
-
-    # Top festival by average traffic
-    fest_avg = filtered.groupby("Festival_Type")["Total"].mean()
-    top_festival  = fest_avg.idxmax() if len(fest_avg) > 0 else "N/A"
-
-    # Weekend vs Weekday gap
-    wkend = filtered[filtered["Is_Weekend"] == 1]["Total"].mean()
-    wkday = filtered[filtered["Is_Weekend"] == 0]["Total"].mean()
-    gap_pct = ((wkend - wkday) / wkday * 100) if wkday > 0 else 0
-
-    col1, col2, col3, col4, col5 = st.columns(5)
-    col1.metric("Total Days",         f"{total_days:,}")
-    col2.metric("Avg Daily Traffic",  f"{avg_traffic:,.0f}")
-    col3.metric("Peak Day",           peak_day, f"{peak_val:,.0f} pax")
-    col4.metric("Top Festival",       top_festival)
-    col5.metric("Weekend vs Weekday", f"+{gap_pct:.1f}%")
+st.sidebar.markdown("---")
+st.sidebar.metric("Filtered Days", f"{len(fdf):,}")
+if len(fdf) > 0:
+    st.sidebar.metric("Avg Daily Traffic", f"{fdf['Total'].mean():,.0f}")
+    st.sidebar.caption(
+        f"{fdf['Date'].min().strftime('%Y-%m-%d')} to {fdf['Date'].max().strftime('%Y-%m-%d')}"
+    )
 else:
-    st.warning("No data matches the selected filters. Please adjust your selections.")
-    st.stop()
+    st.sidebar.warning("No data matches current filters.")
 
-st.divider()
+# ============================================================
+# TITLE
+# ============================================================
+st.title("\U0001f682 Hong Kong Cross-Border Passenger Traffic Analytics")
+st.caption("Interactive dashboard for post-reopening (2023-01-08 onwards) cross-border traffic analysis")
 
-# ── Tabs ──────────────────────────────────────────────────────
+# ============================================================
+# KPI ROW
+# ============================================================
+if len(fdf) > 0:
+    peak_idx = fdf["Total"].idxmax()
+    peak_date = fdf.loc[peak_idx, "Date"].strftime("%Y-%m-%d")
+    peak_val = fdf.loc[peak_idx, "Total"]
+    top_festival = (
+        fdf.groupby("Festival_Type")["Total"]
+        .mean()
+        .drop("Weekday", errors="ignore")
+        .idxmax()
+    )
+    wkend_avg = fdf.loc[fdf["Is_Weekend"] == 1, "Total"].mean()
+    wkday_avg = fdf.loc[fdf["Is_Weekend"] == 0, "Total"].mean()
+    gap_pct = (wkend_avg - wkday_avg) / wkday_avg * 100 if wkday_avg else 0
+
+    k1, k2, k3, k4, k5 = st.columns(5)
+    k1.metric("Total Days", f"{len(fdf):,}")
+    k2.metric("Avg Daily Traffic", f"{fdf['Total'].mean():,.0f}")
+    k3.metric("Peak Day", f"{peak_date}", delta=f"{peak_val:,.0f}")
+    k4.metric("Top Festival", top_festival)
+    k5.metric("Weekend vs Weekday", f"+{gap_pct:.1f}%")
+
+st.markdown("---")
+
+# ============================================================
+# TABS
+# ============================================================
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "📊 Overview",
-    "🎉 Holiday Analysis",
-    "🤖 Classification",
-    "📈 Regression",
-    "🔵 Clustering",
-    "🔗 Association Rules",
+    "\U0001f4ca Overview",
+    "\U0001f389 Holiday Analysis",
+    "\U0001f916 Classification",
+    "\U0001f4c8 Regression",
+    "\U0001f535 Clustering",
+    "\U0001f517 Association Rules",
 ])
 
-# ── Tab 1: Overview ───────────────────────────────────────────
+# ============================================================
+# TAB 1 - OVERVIEW
+# ============================================================
 with tab1:
-    st.subheader("Daily Passenger Traffic Time Series")
+    st.header("Traffic Overview")
 
-    # Time series with 7-day moving average
-    ts_df = filtered[["Date", "Total"]].copy()
-    ts_df = ts_df.sort_values("Date")
-    ts_df["MA7"] = ts_df["Total"].rolling(7, center=True).mean()
+    # Time series with 7-day MA
+    ts = fdf.sort_values("Date").copy()
+    ts["MA7"] = ts["Total"].rolling(7, min_periods=1).mean()
 
     fig_ts = go.Figure()
     fig_ts.add_trace(go.Scatter(
-        x=ts_df["Date"], y=ts_df["Total"],
+        x=ts["Date"], y=ts["Total"],
         mode="lines", name="Daily Total",
-        line=dict(color="#90CAF9", width=1),
-        opacity=0.7
+        line=dict(color=COLORS["primary"], width=0.8),
+        opacity=0.4,
     ))
     fig_ts.add_trace(go.Scatter(
-        x=ts_df["Date"], y=ts_df["MA7"],
-        mode="lines", name="7-Day Moving Avg",
-        line=dict(color="#1565C0", width=2.5)
+        x=ts["Date"], y=ts["MA7"],
+        mode="lines", name="7-Day MA",
+        line=dict(color=COLORS["danger"], width=2),
     ))
     fig_ts.update_layout(
-        template="plotly_white",
-        xaxis_title="Date",
-        yaxis_title="Daily Total Passengers",
-        hovermode="x unified",
-        legend=dict(x=0.01, y=0.99),
-        yaxis=dict(tickformat=",")
+        title="Daily Cross-Border Passenger Traffic with 7-Day Moving Average",
+        xaxis_title="Date", yaxis_title="Total Passengers",
+        template="plotly_white", height=450,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
     st.plotly_chart(fig_ts, use_container_width=True)
 
-    # Day-of-week average
-    st.subheader("Average Traffic by Day of Week")
-    day_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    dow_avg = filtered.groupby("DayName")["Total"].mean().reindex(day_order).reset_index()
-    dow_avg.columns = ["Day", "Avg_Traffic"]
-    dow_avg["Type"] = dow_avg["Day"].apply(lambda d: "Weekend" if d in ["Saturday", "Sunday"] else "Weekday")
+    # Day of week average
+    col_a, col_b = st.columns(2)
 
-    fig_dow = px.bar(
-        dow_avg, x="Day", y="Avg_Traffic",
-        color="Type",
-        color_discrete_map={"Weekday": "#1976D2", "Weekend": "#43A047"},
-        title="Average Daily Traffic by Day of Week",
-        template="plotly_white",
-        labels={"Avg_Traffic": "Avg Daily Passengers", "Day": ""}
-    )
-    fig_dow.update_layout(yaxis=dict(tickformat=","), showlegend=True)
-    fig_dow.update_traces(texttemplate="%{y:,.0f}", textposition="outside")
-    st.plotly_chart(fig_dow, use_container_width=True)
+    with col_a:
+        dow_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        dow_avg = fdf.groupby("DayName")["Total"].mean().reindex(dow_order).reset_index()
+        dow_avg.columns = ["Day", "Average"]
+        fig_dow = px.bar(
+            dow_avg, x="Day", y="Average",
+            title="Average Traffic by Day of Week",
+            color="Average",
+            color_continuous_scale="Blues",
+        )
+        fig_dow.update_layout(template="plotly_white", height=400, showlegend=False)
+        st.plotly_chart(fig_dow, use_container_width=True)
 
-    # Year-over-year growth table
-    st.subheader("Year-over-Year Summary")
-    annual = filtered.groupby("Year").agg(
-        Days=("Total", "count"),
-        Total_Passengers=("Total", "sum"),
-        Daily_Mean=("Total", "mean"),
-        Daily_Max=("Total", "max"),
-        Daily_Min=("Total", "min"),
-    ).reset_index()
-    annual["YoY_Growth"] = annual["Daily_Mean"].pct_change() * 100
+    with col_b:
+        # Year-over-year summary
+        yoy = fdf.groupby("Year").agg(
+            Days=("Total", "count"),
+            Mean=("Total", "mean"),
+            Median=("Total", "median"),
+            Std=("Total", "std"),
+            Min=("Total", "min"),
+            Max=("Total", "max"),
+        ).round(0)
+        yoy.index = yoy.index.astype(int)
+        for c in ["Mean", "Median", "Std", "Min", "Max"]:
+            yoy[c] = yoy[c].apply(lambda x: f"{x:,.0f}")
+        st.markdown("#### Year-over-Year Summary")
+        st.dataframe(yoy, use_container_width=True)
 
-    annual_display = annual.copy()
-    annual_display["Total_Passengers"] = annual_display["Total_Passengers"].apply(lambda x: f"{x:,.0f}")
-    annual_display["Daily_Mean"]       = annual_display["Daily_Mean"].apply(lambda x: f"{x:,.0f}")
-    annual_display["Daily_Max"]        = annual_display["Daily_Max"].apply(lambda x: f"{x:,.0f}")
-    annual_display["Daily_Min"]        = annual_display["Daily_Min"].apply(lambda x: f"{x:,.0f}")
-    annual_display["YoY_Growth"]       = annual_display["YoY_Growth"].apply(
-        lambda x: f"{x:+.1f}%" if pd.notna(x) else "—"
-    )
-    annual_display.columns = ["Year", "Days", "Total Passengers", "Daily Mean", "Daily Max", "Daily Min", "YoY Growth"]
-    st.dataframe(annual_display, use_container_width=True, hide_index=True)
-
-
-# ── Tab 2: Holiday Analysis ───────────────────────────────────
+# ============================================================
+# TAB 2 - HOLIDAY ANALYSIS
+# ============================================================
 with tab2:
-    st.subheader("Traffic by Festival / Day Type")
+    st.header("Holiday & Festival Analysis")
 
-    fest_order = ["Weekday", "Regular Weekend", "Other Holiday", "Golden Week", "CNY", "Easter"]
-    fest_colors = {
-        "Weekday":         "#1976D2",
-        "Regular Weekend": "#43A047",
-        "Other Holiday":   "#FB8C00",
-        "Golden Week":     "#E53935",
-        "CNY":             "#D81B60",
-        "Easter":          "#6A1B9A"
-    }
+    col_h1, col_h2 = st.columns(2)
 
-    fest_stats = (
-        filtered.groupby("Festival_Type")["Total"]
-        .agg(["mean", "count", "std"])
-        .reindex([f for f in fest_order if f in filtered["Festival_Type"].unique()])
-        .reset_index()
-    )
-    fest_stats.columns = ["Festival_Type", "Avg_Traffic", "Days", "Std"]
+    with col_h1:
+        fest_stats = fdf.groupby("Festival_Type")["Total"].agg(["mean", "std", "count"]).reset_index()
+        fest_stats.columns = ["Festival_Type", "mean", "std", "count"]
+        fest_stats = fest_stats.sort_values("mean", ascending=True)
 
-    fig_fest = px.bar(
-        fest_stats,
-        x="Festival_Type", y="Avg_Traffic",
-        color="Festival_Type",
-        color_discrete_map=fest_colors,
-        error_y="Std",
-        title="Average Daily Traffic by Festival / Day Type",
-        template="plotly_white",
-        labels={"Avg_Traffic": "Avg Daily Passengers", "Festival_Type": "Day Type"},
-        text="Avg_Traffic"
-    )
-    fig_fest.update_traces(texttemplate="%{text:,.0f}", textposition="outside")
-    fig_fest.update_layout(
-        showlegend=False,
-        yaxis=dict(tickformat=","),
-        xaxis=dict(categoryorder="array", categoryarray=fest_order)
-    )
-    st.plotly_chart(fig_fest, use_container_width=True)
+        fig_fest = go.Figure()
+        fig_fest.add_trace(go.Bar(
+            y=fest_stats["Festival_Type"],
+            x=fest_stats["mean"],
+            orientation="h",
+            error_x=dict(type="data", array=fest_stats["std"].fillna(0)),
+            marker_color=[COLORS["primary"], COLORS["secondary"], COLORS["success"],
+                          COLORS["danger"], COLORS["purple"], COLORS["teal"]][:len(fest_stats)],
+        ))
+        fig_fest.update_layout(
+            title="Average Traffic by Day/Festival Type (with Std Dev)",
+            xaxis_title="Average Total Passengers",
+            template="plotly_white", height=400,
+        )
+        st.plotly_chart(fig_fest, use_container_width=True)
 
-    # Weekday baseline annotation
-    weekday_avg = filtered[filtered["Festival_Type"] == "Weekday"]["Total"].mean()
-    st.info(f"📌 Regular Weekday baseline: **{weekday_avg:,.0f}** avg daily passengers")
-
-    # Monthly heatmap
-    st.subheader("Monthly Average Traffic by Year")
-    month_labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-    monthly = filtered.groupby(["Year", "Month"])["Total"].mean().reset_index()
-    monthly["Month_Name"] = monthly["Month"].apply(lambda m: month_labels[m - 1])
-
-    fig_monthly = px.line(
-        monthly, x="Month_Name", y="Total",
-        color="Year", color_discrete_sequence=["#E53935", "#1976D2", "#43A047"],
-        markers=True,
-        title="Monthly Average Daily Traffic by Year",
-        template="plotly_white",
-        labels={"Total": "Avg Daily Passengers", "Month_Name": "Month"},
-        category_orders={"Month_Name": month_labels}
-    )
-    fig_monthly.update_layout(yaxis=dict(tickformat=","), hovermode="x unified")
-    st.plotly_chart(fig_monthly, use_container_width=True)
+    with col_h2:
+        monthly = fdf.groupby(["Year", "Month"])["Total"].mean().reset_index()
+        monthly["Year"] = monthly["Year"].astype(str)
+        fig_monthly = px.line(
+            monthly, x="Month", y="Total", color="Year",
+            title="Monthly Average Traffic by Year",
+            markers=True,
+            color_discrete_sequence=COLOR_SEQ,
+        )
+        fig_monthly.update_layout(
+            template="plotly_white", height=400,
+            xaxis=dict(dtick=1),
+        )
+        st.plotly_chart(fig_monthly, use_container_width=True)
 
     # Festival detail table
-    st.subheader("Festival Detail Table")
-    fest_table = (
-        filtered.groupby("Festival_Type")["Total"]
-        .agg(["count", "mean", "max", "min"])
-        .reset_index()
-    )
-    fest_table.columns = ["Festival Type", "Days", "Avg Traffic", "Max Traffic", "Min Traffic"]
-    for col in ["Avg Traffic", "Max Traffic", "Min Traffic"]:
-        fest_table[col] = fest_table[col].apply(lambda x: f"{x:,.0f}")
-    st.dataframe(fest_table, use_container_width=True, hide_index=True)
+    st.markdown("#### Festival Detail Table")
+    fest_detail = fdf.groupby("Festival_Type").agg(
+        Days=("Total", "count"),
+        Mean=("Total", "mean"),
+        Median=("Total", "median"),
+        Min=("Total", "min"),
+        Max=("Total", "max"),
+    ).round(0)
+    for c in ["Mean", "Median", "Min", "Max"]:
+        fest_detail[c] = fest_detail[c].apply(lambda x: f"{x:,.0f}")
+    st.dataframe(fest_detail, use_container_width=True)
 
-
-# ── Tab 3: Classification ─────────────────────────────────────
+# ============================================================
+# TAB 3 - CLASSIFICATION
+# ============================================================
 with tab3:
-    st.subheader("Classification Models — Predicting High / Low Traffic")
-    st.markdown(
-        "Two models trained on 9 temporal and holiday features to predict whether "
-        "daily traffic exceeds the median (binary: **High = 1, Low = 0**)."
-    )
+    st.header("Classification Models (NB03 Results)")
+    st.markdown("Two models trained on **10 temporal and holiday features** to classify traffic as High/Low.")
 
-    # Hardcoded model results from Notebook 03
-    DT_ACC   = 0.8455
-    DT_AUC   = 0.9296
-    DT_CV    = 0.6661
-    LR_ACC   = 0.8318
-    LR_AUC   = 0.9097
-    LR_CV    = 0.7655
+    # Hardcoded metrics
+    dt_metrics = {
+        "Accuracy": 0.8991, "Precision": 0.9451, "Recall": 0.8350,
+        "F1": 0.8866, "AUC-ROC": 0.9264,
+        "CV Mean": 0.8898, "CV Std": 0.0318, "Test-CV Gap": 0.0093,
+    }
+    lr_metrics = {
+        "Accuracy": 0.8211, "Precision": 0.7963, "Recall": 0.8350,
+        "F1": 0.8152, "AUC-ROC": 0.9253,
+        "CV Mean": 0.8568, "CV Std": 0.0342, "Test-CV Gap": 0.0357,
+    }
 
-    c1, c2 = st.columns(2)
+    dt_cm = np.array([[110, 5], [17, 86]])
+    lr_cm = np.array([[93, 22], [17, 86]])
 
-    with c1:
-        st.markdown("### 🌳 Decision Tree (max_depth=5)")
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Test Accuracy", f"{DT_ACC:.2%}")
-        m2.metric("AUC-ROC",       f"{DT_AUC:.4f}")
-        m3.metric("10-Fold CV",    f"{DT_CV:.2%}")
-        st.caption(f"⚠️ CV Gap: {abs(DT_ACC - DT_CV):.2%} — indicates moderate overfitting")
+    # Model comparison table
+    comp_df = pd.DataFrame({
+        "Metric": ["Accuracy", "Precision", "Recall", "F1", "AUC-ROC",
+                    "10-Fold CV Mean", "CV Std", "Test-CV Gap"],
+        "Decision Tree": [
+            f"{dt_metrics['Accuracy']:.4f}", f"{dt_metrics['Precision']:.4f}",
+            f"{dt_metrics['Recall']:.4f}", f"{dt_metrics['F1']:.4f}",
+            f"{dt_metrics['AUC-ROC']:.4f}", f"{dt_metrics['CV Mean']:.4f}",
+            f"{dt_metrics['CV Std']:.4f}", f"{dt_metrics['Test-CV Gap']:.4f}",
+        ],
+        "Logistic Regression": [
+            f"{lr_metrics['Accuracy']:.4f}", f"{lr_metrics['Precision']:.4f}",
+            f"{lr_metrics['Recall']:.4f}", f"{lr_metrics['F1']:.4f}",
+            f"{lr_metrics['AUC-ROC']:.4f}", f"{lr_metrics['CV Mean']:.4f}",
+            f"{lr_metrics['CV Std']:.4f}", f"{lr_metrics['Test-CV Gap']:.4f}",
+        ],
+    })
 
-        # Decision Tree confusion matrix (hardcoded from Notebook 03)
-        dt_cm = np.array([[93, 14], [19, 94]])
-        fig_dt_cm = px.imshow(
-            dt_cm,
-            labels=dict(x="Predicted", y="Actual", color="Count"),
-            x=["Low", "High"], y=["Low", "High"],
-            color_continuous_scale="Blues",
-            title="Decision Tree — Confusion Matrix",
-            text_auto=True
+    col_c1, col_c2 = st.columns([1.2, 0.8])
+
+    with col_c1:
+        st.markdown("#### Model Performance Comparison")
+        st.dataframe(comp_df, use_container_width=True, hide_index=True)
+
+    with col_c2:
+        # Radar chart
+        metrics_names = ["Accuracy", "Precision", "Recall", "F1", "AUC-ROC"]
+        dt_vals = [dt_metrics[m] for m in metrics_names]
+        lr_vals = [lr_metrics[m] for m in metrics_names]
+
+        fig_radar = go.Figure()
+        fig_radar.add_trace(go.Scatterpolar(
+            r=dt_vals + [dt_vals[0]],
+            theta=metrics_names + [metrics_names[0]],
+            fill="toself", name="Decision Tree",
+            line_color=COLORS["primary"],
+        ))
+        fig_radar.add_trace(go.Scatterpolar(
+            r=lr_vals + [lr_vals[0]],
+            theta=metrics_names + [metrics_names[0]],
+            fill="toself", name="Logistic Regression",
+            line_color=COLORS["secondary"],
+        ))
+        fig_radar.update_layout(
+            polar=dict(radialaxis=dict(visible=True, range=[0.7, 1.0])),
+            title="Model Comparison Radar",
+            template="plotly_white", height=380,
         )
-        fig_dt_cm.update_layout(template="plotly_white")
-        st.plotly_chart(fig_dt_cm, use_container_width=True)
+        st.plotly_chart(fig_radar, use_container_width=True)
 
-    with c2:
-        st.markdown("### 📉 Logistic Regression (L2)")
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Test Accuracy", f"{LR_ACC:.2%}")
-        m2.metric("AUC-ROC",       f"{LR_AUC:.4f}")
-        m3.metric("10-Fold CV",    f"{LR_CV:.2%}")
-        st.caption(f"✅ CV Gap: {abs(LR_ACC - LR_CV):.2%} — generalises more reliably")
+    # Confusion matrices side by side
+    st.markdown("#### Confusion Matrices")
+    cm_col1, cm_col2 = st.columns(2)
 
-        # Logistic Regression confusion matrix (hardcoded from Notebook 03)
-        lr_cm = np.array([[90, 17], [21, 92]])
-        fig_lr_cm = px.imshow(
-            lr_cm,
-            labels=dict(x="Predicted", y="Actual", color="Count"),
-            x=["Low", "High"], y=["Low", "High"],
-            color_continuous_scale="Oranges",
-            title="Logistic Regression — Confusion Matrix",
-            text_auto=True
+    with cm_col1:
+        labels = ["Low", "High"]
+        fig_cm_dt = go.Figure(data=go.Heatmap(
+            z=dt_cm, x=labels, y=labels,
+            text=dt_cm, texttemplate="%{text}",
+            colorscale="Blues", showscale=False,
+        ))
+        fig_cm_dt.update_layout(
+            title="Decision Tree (max_depth=5)",
+            xaxis_title="Predicted", yaxis_title="Actual",
+            template="plotly_white", height=350,
+            yaxis=dict(autorange="reversed"),
         )
-        fig_lr_cm.update_layout(template="plotly_white")
-        st.plotly_chart(fig_lr_cm, use_container_width=True)
+        st.plotly_chart(fig_cm_dt, use_container_width=True)
 
-    # Model comparison bar chart
-    st.subheader("Model Comparison")
-    metrics_names = ["Accuracy", "AUC-ROC", "10-Fold CV"]
-    dt_scores     = [DT_ACC, DT_AUC, DT_CV]
-    lr_scores     = [LR_ACC, LR_AUC, LR_CV]
+    with cm_col2:
+        fig_cm_lr = go.Figure(data=go.Heatmap(
+            z=lr_cm, x=labels, y=labels,
+            text=lr_cm, texttemplate="%{text}",
+            colorscale="Oranges", showscale=False,
+        ))
+        fig_cm_lr.update_layout(
+            title="Logistic Regression",
+            xaxis_title="Predicted", yaxis_title="Actual",
+            template="plotly_white", height=350,
+            yaxis=dict(autorange="reversed"),
+        )
+        st.plotly_chart(fig_cm_lr, use_container_width=True)
 
-    fig_cmp = go.Figure()
-    fig_cmp.add_trace(go.Bar(
-        name="Decision Tree",
-        x=metrics_names, y=dt_scores,
-        marker_color="#1976D2",
-        text=[f"{v:.3f}" for v in dt_scores],
-        textposition="outside"
-    ))
-    fig_cmp.add_trace(go.Bar(
-        name="Logistic Regression",
-        x=metrics_names, y=lr_scores,
-        marker_color="#FB8C00",
-        text=[f"{v:.3f}" for v in lr_scores],
-        textposition="outside"
-    ))
-    fig_cmp.update_layout(
-        barmode="group",
-        template="plotly_white",
-        yaxis=dict(range=[0.5, 1.0], title="Score"),
-        title="Decision Tree vs Logistic Regression",
-        legend=dict(x=0.01, y=0.99)
+    # Feature Importance
+    st.markdown("#### Decision Tree Feature Importance")
+    fi = {
+        "Year": 0.375, "DayOfWeek": 0.302, "Quarter": 0.142,
+        "Month": 0.065, "Is_Holiday": 0.062, "Is_Weekend": 0.047,
+        "Is_CNY": 0.006, "Is_GoldenWeek": 0.000, "Is_Both_Holiday": 0.000,
+        "Is_Easter": 0.000,
+    }
+    fi_df = pd.DataFrame(list(fi.items()), columns=["Feature", "Importance"]).sort_values("Importance")
+    fig_fi = px.bar(
+        fi_df, x="Importance", y="Feature", orientation="h",
+        title="Feature Importance (10 Features)",
+        color="Importance", color_continuous_scale="Viridis",
     )
-    st.plotly_chart(fig_cmp, use_container_width=True)
+    fig_fi.update_layout(template="plotly_white", height=400, showlegend=False)
+    st.plotly_chart(fig_fi, use_container_width=True)
 
-    # Feature importance (hardcoded from Notebook 03 DT)
-    st.subheader("Decision Tree — Feature Importance")
-    feat_imp = pd.DataFrame({
-        "Feature":    ["Is_Weekend", "Year", "Month", "DayOfWeek", "Is_Holiday",
-                       "Quarter", "Is_Easter", "Is_GoldenWeek", "Is_CNY"],
-        "Importance": [0.412, 0.231, 0.118, 0.089, 0.062, 0.041, 0.025, 0.013, 0.009]
-    }).sort_values("Importance")
+    # Interactive Predictor
+    st.markdown("---")
+    st.markdown("#### Interactive Traffic Predictor")
+    st.caption("Adjust the features below to get a predicted traffic level (based on Decision Tree logic).")
 
-    fig_imp = px.bar(
-        feat_imp, x="Importance", y="Feature",
-        orientation="h",
-        color="Importance",
-        color_continuous_scale="Blues",
-        title="Feature Importance (Gini Impurity)",
-        template="plotly_white",
-        labels={"Importance": "Importance Score", "Feature": ""}
-    )
-    fig_imp.update_layout(coloraxis_showscale=False)
-    fig_imp.update_traces(texttemplate="%{x:.3f}", textposition="outside")
-    st.plotly_chart(fig_imp, use_container_width=True)
+    pr_col1, pr_col2, pr_col3 = st.columns(3)
+    with pr_col1:
+        p_year = st.selectbox("Year", [2023, 2024, 2025], index=2, key="pred_year")
+        p_month = st.slider("Month", 1, 12, 6, key="pred_month")
+    with pr_col2:
+        p_dow = st.selectbox("Day of Week", list(range(7)),
+                             format_func=lambda x: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][x],
+                             key="pred_dow")
+        p_quarter = st.selectbox("Quarter", [1, 2, 3, 4], index=1, key="pred_quarter")
+    with pr_col3:
+        p_weekend = st.checkbox("Is Weekend", value=p_dow >= 5, key="pred_wkend")
+        p_holiday = st.checkbox("Is Holiday", key="pred_holiday")
+        p_cny = st.checkbox("Is CNY", key="pred_cny")
 
-    st.divider()
-
-    # ── Interactive Predictor ─────────────────────────────────
-    st.subheader("🎯 Interactive Traffic Predictor")
-    st.markdown(
-        "Adjust the inputs below to get a **High / Low** traffic prediction "
-        "using a rule-based approximation weighted by Decision Tree feature importance."
-    )
-
-    pc1, pc2, pc3 = st.columns(3)
-    with pc1:
-        p_month    = st.selectbox("Month", list(range(1, 13)),
-                                  format_func=lambda m: ["Jan","Feb","Mar","Apr","May","Jun",
-                                                          "Jul","Aug","Sep","Oct","Nov","Dec"][m-1])
-        p_dow      = st.selectbox("Day of Week", list(range(7)),
-                                  format_func=lambda d: ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][d])
-    with pc2:
-        p_holiday  = st.checkbox("Public Holiday (HK)")
-        p_cny      = st.checkbox("Chinese New Year period")
-    with pc3:
-        p_golden   = st.checkbox("Golden Week period")
-        p_easter   = st.checkbox("Easter period")
-
-    # Rule-based approximation weighted by DT feature importance
-    # Weights derived from feature importance scores in Notebook 03
-    is_weekend = 1 if p_dow >= 5 else 0
-
+    # Simple heuristic based on feature importances
     score = 0.0
-    score += is_weekend  * 0.412    # Is_Weekend — highest importance
-    # Year effect: approximate as moderate positive (2024/2025 era)
-    score += 0.5         * 0.231    # Year — fixed at mid-recovery (≈0.5 normalised)
-    # Month effect: summer/holiday months score higher
-    month_effect = {1: 0.4, 2: 0.8, 3: 0.5, 4: 0.9, 5: 0.6, 6: 0.5,
-                    7: 0.7, 8: 0.7, 9: 0.5, 10: 0.8, 11: 0.4, 12: 0.5}
-    score += month_effect.get(p_month, 0.5) * 0.118  # Month
-    # DayOfWeek: Fri/Sat highest
-    dow_effect = {0: 0.3, 1: 0.2, 2: 0.2, 3: 0.3, 4: 0.6, 5: 0.9, 6: 0.8}
-    score += dow_effect.get(p_dow, 0.5) * 0.089      # DayOfWeek
-    score += p_holiday * 0.062                        # Is_Holiday
-    score += p_cny     * 0.025                        # Is_CNY
-    score += p_golden  * 0.013                        # Is_GoldenWeek
-    score += p_easter  * 0.025                        # Is_Easter (boosted slightly)
+    # Year effect: 2025 high, 2023 low
+    score += (p_year - 2023) / 2 * 0.375
+    # Weekend/Sat-Sun push high
+    score += (1 if p_dow >= 5 else 0) * 0.302
+    # Quarter
+    score += (p_quarter / 4) * 0.142
+    # Month
+    score += (p_month / 12) * 0.065
+    # Holiday
+    score += (1 if p_holiday else 0) * 0.062
+    # Weekend flag
+    score += (1 if p_weekend else 0) * 0.047
+    # CNY
+    score += (1 if p_cny else 0) * 0.006
 
-    # Normalise to [0, 1] probability
-    max_possible = 0.412 + 0.231 + 0.118 + 0.089 + 0.062 + 0.025 + 0.013 + 0.025
-    prob_high = min(score / max_possible, 1.0)
+    prob_high = min(max(score, 0), 1)
+    predicted_label = "High" if prob_high >= 0.45 else "Low"
 
-    # Apply threshold at 0.50
-    prediction = "🔴 High Traffic" if prob_high >= 0.50 else "🔵 Low Traffic"
-    confidence = prob_high if prob_high >= 0.50 else 1 - prob_high
-
-    res1, res2 = st.columns(2)
-    res1.metric("Prediction",   prediction)
-    res2.metric("Confidence",   f"{confidence:.1%}")
-
-    # Probability gauge
     fig_gauge = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=round(prob_high * 100, 1),
-        title={"text": "P(High Traffic)"},
+        mode="gauge+number+delta",
+        value=prob_high * 100,
+        title={"text": f"Predicted: {predicted_label} Traffic"},
+        delta={"reference": 50, "increasing": {"color": COLORS["danger"]}},
         gauge={
-            "axis":  {"range": [0, 100]},
-            "bar":   {"color": "#E53935" if prob_high >= 0.5 else "#1976D2"},
+            "axis": {"range": [0, 100]},
+            "bar": {"color": COLORS["primary"]},
             "steps": [
-                {"range": [0,  50], "color": "#BBDEFB"},
-                {"range": [50, 100], "color": "#FFCDD2"}
+                {"range": [0, 45], "color": "#d4edda"},
+                {"range": [45, 100], "color": "#f8d7da"},
             ],
-            "threshold": {"line": {"color": "black", "width": 3}, "value": 50}
-        }
+            "threshold": {
+                "line": {"color": COLORS["danger"], "width": 4},
+                "thickness": 0.75,
+                "value": 45,
+            },
+        },
     ))
     fig_gauge.update_layout(height=300, template="plotly_white")
     st.plotly_chart(fig_gauge, use_container_width=True)
 
-    st.caption(
-        "ℹ️ This predictor uses a rule-based approximation weighted by Decision Tree "
-        "feature importance scores (Notebook 03). It is for illustration only — "
-        "not a trained sklearn model."
-    )
-
-
-# ── Tab 4: Regression ─────────────────────────────────────────
+# ============================================================
+# TAB 4 - REGRESSION
+# ============================================================
 with tab4:
-    st.subheader("Linear Regression — Predicting Exact Daily Passenger Count")
-    st.markdown(
-        "Multiple Linear Regression with **Z-score normalised** features. "
-        "Target: continuous `Total` daily passenger count."
-    )
+    st.header("Regression Analysis (NB04 Results)")
+    st.markdown("Linear regression predicting daily total passenger count from temporal and holiday features.")
 
-    # Hardcoded results from Notebook 04
-    R2   = 0.6868
-    RMSE = 138736
-    MAE  = 108420
+    # Hardcoded metrics
+    reg_col1, reg_col2 = st.columns(2)
 
-    m1, m2, m3 = st.columns(3)
-    m1.metric("R² (Test)",  f"{R2:.4f}")
-    m2.metric("RMSE",       f"{RMSE:,}")
-    m3.metric("MAE",        f"{MAE:,}")
+    with reg_col1:
+        st.markdown("#### Model Performance")
+        reg_metrics = pd.DataFrame({
+            "Metric": [
+                "R\u00b2 Test", "R\u00b2 Train",
+                "RMSE Test", "RMSE Train",
+                "MAE Test",
+                "10-Fold CV R\u00b2",
+            ],
+            "Value": [
+                "0.7423", "0.7042",
+                "111,145", "126,839",
+                "83,844",
+                "0.3192 \u00b1 0.5176",
+            ],
+        })
+        st.dataframe(reg_metrics, use_container_width=True, hide_index=True)
 
-    st.divider()
+    with reg_col2:
+        st.markdown("#### Coefficient Magnitudes")
+        coefs = {
+            "Year": 151639, "Is_Weekend": 87662, "Month": 40125,
+            "Is_Holiday": 37873, "Quarter": 36582, "DayOfWeek": 22666,
+            "Is_Both_Holiday": 19905, "Is_Easter": 18617,
+            "Is_GoldenWeek": -13433, "Is_CNY": -23326,
+        }
+        coef_df = pd.DataFrame(list(coefs.items()), columns=["Feature", "Coefficient"])
+        coef_df = coef_df.sort_values("Coefficient")
+        coef_df["Color"] = coef_df["Coefficient"].apply(
+            lambda x: COLORS["success"] if x > 0 else COLORS["danger"]
+        )
+        fig_coef = go.Figure(go.Bar(
+            y=coef_df["Feature"],
+            x=coef_df["Coefficient"],
+            orientation="h",
+            marker_color=coef_df["Color"],
+        ))
+        fig_coef.update_layout(
+            title="Standardised Coefficients",
+            xaxis_title="Coefficient Value",
+            template="plotly_white", height=400,
+        )
+        st.plotly_chart(fig_coef, use_container_width=True)
 
-    # Predicted vs Actual scatter (simulated from real data distribution)
-    st.subheader("Predicted vs Actual")
+    # Predicted vs Actual scatter (simulated from data)
+    st.markdown("#### Predicted vs Actual (Approximation)")
 
-    np.random.seed(42)
-    actual_vals = filtered["Total"].values
-    # Simulate predictions using linear approximation with realistic residuals
-    predicted_vals = (
-        actual_vals * R2
-        + actual_vals.mean() * (1 - R2)
-        + np.random.normal(0, RMSE * 0.8, size=len(actual_vals))
-    )
-    predicted_vals = np.clip(predicted_vals, actual_vals.min() * 0.5, actual_vals.max() * 1.1)
+    # Create a simple linear prediction to visualise the relationship
+    feature_cols_reg = [
+        "Year", "Month", "DayOfWeek", "Quarter",
+        "Is_Weekend", "Is_Holiday", "Is_CNY",
+        "Is_GoldenWeek", "Is_Easter", "Is_Both_Holiday",
+    ]
+    if all(c in fdf.columns for c in feature_cols_reg):
+        X_vis = fdf[feature_cols_reg].copy()
+        y_vis = fdf["Total"].copy()
+        # Use coefficient values to generate approximate predictions
+        coef_map = {
+            "Year": 151639, "Is_Weekend": 87662, "Month": 40125,
+            "Is_Holiday": 37873, "Quarter": 36582, "DayOfWeek": 22666,
+            "Is_Both_Holiday": 19905, "Is_Easter": 18617,
+            "Is_GoldenWeek": -13433, "Is_CNY": -23326,
+        }
+        # Standardise features for prediction
+        X_std = (X_vis - X_vis.mean()) / X_vis.std().replace(0, 1)
+        y_pred = sum(X_std[col] * coef_map.get(col, 0) for col in feature_cols_reg)
+        y_pred = y_pred + y_vis.mean()
 
-    scatter_df = pd.DataFrame({
-        "Actual":    actual_vals,
-        "Predicted": predicted_vals,
-        "Festival":  filtered["Festival_Type"].values
-    })
-
-    fest_color_map = {
-        "Weekday":         "#90CAF9",
-        "Regular Weekend": "#42A5F5",
-        "Other Holiday":   "#FB8C00",
-        "Golden Week":     "#E53935",
-        "CNY":             "#D81B60",
-        "Easter":          "#6A1B9A"
-    }
-
-    fig_scatter = px.scatter(
-        scatter_df,
-        x="Actual", y="Predicted",
-        color="Festival",
-        color_discrete_map=fest_color_map,
-        opacity=0.6,
-        title=f"Predicted vs Actual — Linear Regression (R² = {R2:.4f}, RMSE = {RMSE:,})",
-        template="plotly_white",
-        labels={"Actual": "Actual Total Passengers", "Predicted": "Predicted Total Passengers"}
-    )
-    # Perfect prediction line
-    min_v = min(actual_vals.min(), predicted_vals.min())
-    max_v = max(actual_vals.max(), predicted_vals.max())
-    fig_scatter.add_trace(go.Scatter(
-        x=[min_v, max_v], y=[min_v, max_v],
-        mode="lines", name="Perfect Prediction",
-        line=dict(color="red", dash="dash", width=2)
-    ))
-    fig_scatter.update_layout(
-        xaxis=dict(tickformat=","),
-        yaxis=dict(tickformat=",")
-    )
-    st.plotly_chart(fig_scatter, use_container_width=True)
-
-    # Standardised coefficients (hardcoded from Notebook 04)
-    st.subheader("Standardised Regression Coefficients (β)")
-    coef_data = pd.DataFrame({
-        "Feature":     ["Is_Weekend", "Year", "Is_Easter", "Is_CNY",
-                        "Is_GoldenWeek", "Is_Holiday", "Month",
-                        "Quarter", "DayOfWeek"],
-        "Coefficient": [89420, 74830, 62150, 58930,
-                        41200, 35600, 18750,
-                        -12340, -8920]
-    }).sort_values("Coefficient")
-
-    fig_coef = px.bar(
-        coef_data, x="Coefficient", y="Feature",
-        orientation="h",
-        color="Coefficient",
-        color_continuous_scale="RdYlGn",
-        title="Standardised Coefficients — Linear Regression",
-        template="plotly_white",
-        labels={"Coefficient": "β (passengers per 1 SD increase)", "Feature": ""}
-    )
-    fig_coef.update_layout(coloraxis_showscale=False)
-    fig_coef.add_vline(x=0, line_color="black", line_width=1)
-    fig_coef.update_traces(texttemplate="%{x:,.0f}", textposition="outside")
-    st.plotly_chart(fig_coef, use_container_width=True)
+        scatter_df = pd.DataFrame({"Actual": y_vis.values, "Predicted": y_pred.values})
+        fig_scatter = px.scatter(
+            scatter_df, x="Actual", y="Predicted",
+            title="Predicted vs Actual Total Passengers",
+            opacity=0.5,
+            color_discrete_sequence=[COLORS["primary"]],
+        )
+        min_val = min(scatter_df["Actual"].min(), scatter_df["Predicted"].min())
+        max_val = max(scatter_df["Actual"].max(), scatter_df["Predicted"].max())
+        fig_scatter.add_trace(go.Scatter(
+            x=[min_val, max_val], y=[min_val, max_val],
+            mode="lines", name="Perfect Prediction",
+            line=dict(color=COLORS["danger"], dash="dash"),
+        ))
+        fig_scatter.update_layout(template="plotly_white", height=450)
+        st.plotly_chart(fig_scatter, use_container_width=True)
 
     # Limitation note
-    st.info(
-        "⚠️ **Limitation:** Linear regression cannot capture non-linear festival surges. "
-        f"The model explains **{R2:.1%}** of variance (R² = {R2}). "
-        "The remaining 31% is driven by unobserved factors (weather, policy, economy). "
-        "Major festivals (CNY, Easter) are systematically underpredicted."
+    st.warning(
+        "**Limitation: Multicollinearity.** Several features (Month/Quarter, Is_Weekend/DayOfWeek) "
+        "are correlated, which can inflate coefficient variance and make individual coefficient "
+        "interpretation unreliable. The high CV standard deviation (0.5176) and the gap between "
+        "test R\u00b2 (0.74) and CV R\u00b2 (0.32) suggest instability across folds. "
+        "Consider regularisation (Ridge/Lasso) or feature selection in future work."
     )
 
-
-# ── Tab 5: Clustering ─────────────────────────────────────────
+# ============================================================
+# TAB 5 - CLUSTERING
+# ============================================================
 with tab5:
-    st.subheader("K-Means Clustering — Discovering Natural Traffic Patterns")
-    st.markdown(
-        "K-Means (k=4) applied to 8 features: `Total`, `HK Residents`, `Mainland Visitors`, "
-        "`Other Visitors`, `Is_Holiday`, `Is_Weekend`, `Month`, `DayOfWeek`."
-    )
+    st.header("K-Means Clustering (NB05 Results)")
 
-    c1, c2 = st.columns(2)
+    # Elbow and Silhouette
+    k_values = [2, 3, 4, 5, 6, 7, 8]
+    inertia = [6939, 5605, 4523, 3829, 3405, 3086, 2789]
+    silhouette = [0.3514, 0.3679, 0.2845, 0.3223, 0.2727, 0.2651, 0.2665]
 
-    # Elbow plot (hardcoded inertia values from Notebook 05)
-    with c1:
-        st.markdown("#### Elbow Method")
-        k_vals   = list(range(2, 9))
-        inertias = [4850, 3620, 2890, 2340, 2050, 1830, 1670]
+    elbow_col, sil_col = st.columns(2)
 
+    with elbow_col:
         fig_elbow = go.Figure()
         fig_elbow.add_trace(go.Scatter(
-            x=k_vals, y=inertias,
-            mode="lines+markers",
-            line=dict(color="#1976D2", width=2),
-            marker=dict(size=8, color="#1976D2"),
-            name="Inertia"
+            x=k_values, y=inertia,
+            mode="lines+markers", name="Inertia",
+            line=dict(color=COLORS["primary"], width=2),
+            marker=dict(size=8),
         ))
-        fig_elbow.add_vline(
-            x=4, line_dash="dash", line_color="red",
-            annotation_text="k=4 selected",
-            annotation_position="top right"
-        )
+        fig_elbow.add_vline(x=4, line_dash="dash", line_color=COLORS["danger"],
+                            annotation_text="k=4 (chosen)")
         fig_elbow.update_layout(
-            template="plotly_white",
-            xaxis_title="Number of Clusters (k)",
-            yaxis_title="Inertia (Within-Cluster SSE)",
-            title="Elbow Method — Optimal k"
+            title="Elbow Method", xaxis_title="k",
+            yaxis_title="Inertia", template="plotly_white", height=380,
         )
         st.plotly_chart(fig_elbow, use_container_width=True)
 
-    # Silhouette scores (hardcoded from Notebook 05)
-    with c2:
-        st.markdown("#### Silhouette Scores")
-        sil_scores = [0.28, 0.31, 0.34, 0.32, 0.30, 0.28, 0.26]
-
+    with sil_col:
         fig_sil = go.Figure()
         fig_sil.add_trace(go.Scatter(
-            x=k_vals, y=sil_scores,
-            mode="lines+markers",
-            line=dict(color="#43A047", width=2),
-            marker=dict(size=8, color="#43A047"),
-            name="Silhouette"
+            x=k_values, y=silhouette,
+            mode="lines+markers", name="Silhouette Score",
+            line=dict(color=COLORS["secondary"], width=2),
+            marker=dict(size=8),
         ))
-        fig_sil.add_vline(
-            x=4, line_dash="dash", line_color="red",
-            annotation_text="k=4 selected",
-            annotation_position="top right"
-        )
+        fig_sil.add_vline(x=4, line_dash="dash", line_color=COLORS["danger"],
+                          annotation_text="k=4 (chosen)")
         fig_sil.update_layout(
-            template="plotly_white",
-            xaxis_title="Number of Clusters (k)",
-            yaxis_title="Silhouette Score",
-            title="Silhouette Score by k"
+            title="Silhouette Score", xaxis_title="k",
+            yaxis_title="Score", template="plotly_white", height=380,
         )
         st.plotly_chart(fig_sil, use_container_width=True)
 
-    # Cluster scatter: Month vs Total
-    st.subheader("Cluster Scatter — Month vs Total Traffic")
+    # Cluster Profiles
+    st.markdown("#### Cluster Profiles (k=4)")
 
-    cluster_colors = {
-        "Holiday Peak":    "#E53935",
-        "Regular Weekday": "#1976D2",
-        "Early Recovery":  "#FB8C00",
-        "Weekend Peak":    "#43A047"
-    }
-
-    # Assign approximate cluster labels to filtered data based on rules
-    def assign_cluster(row):
-        if row["Festival_Type"] in ["CNY", "Easter", "Golden Week"]:
-            return "Holiday Peak"
-        elif row["Is_Weekend"] == 1:
-            return "Weekend Peak"
-        elif row["Year"] == 2023 and row["Month"] <= 6:
-            return "Early Recovery"
-        else:
-            return "Regular Weekday"
-
-    filtered_c = filtered.copy()
-    filtered_c["Cluster"] = filtered_c.apply(assign_cluster, axis=1)
-
-    fig_cluster = px.scatter(
-        filtered_c, x="Month", y="Total",
-        color="Cluster",
-        color_discrete_map=cluster_colors,
-        opacity=0.7,
-        title="K-Means Clusters: Month vs Daily Total Passengers",
-        template="plotly_white",
-        labels={"Total": "Daily Total Passengers", "Month": "Month"},
-        hover_data=["Date", "Festival_Type"]
-    )
-    fig_cluster.update_layout(
-        xaxis=dict(tickmode="array", tickvals=list(range(1, 13)),
-                   ticktext=["Jan","Feb","Mar","Apr","May","Jun",
-                              "Jul","Aug","Sep","Oct","Nov","Dec"]),
-        yaxis=dict(tickformat=",")
-    )
-    st.plotly_chart(fig_cluster, use_container_width=True)
-
-    # Cluster profile table (hardcoded from Notebook 05)
-    st.subheader("Cluster Profile Table")
-    cluster_profile = pd.DataFrame({
-        "Cluster":           ["Holiday Peak", "Regular Weekday", "Early Recovery", "Weekend Peak"],
-        "Size (days)":       [48, 512, 187, 349],
-        "Avg Total":         ["1,024,830", "693,475", "521,340", "812,650"],
-        "Avg HK Residents":  ["582,400", "398,200", "301,500", "471,300"],
-        "Avg ML Visitors":   ["385,600", "256,800", "193,200", "301,400"],
-        "Is_Holiday (%)":    ["78%", "8%", "12%", "15%"],
-        "Is_Weekend (%)":    ["45%", "0%", "30%", "100%"],
-        "Typical Period":    ["CNY / Easter / Oct", "Tue–Thu year-round",
-                              "Jan–Jun 2023", "Sat–Sun year-round"]
+    cluster_profiles = pd.DataFrame({
+        "Cluster": ["Holiday Peak", "Regular Weekday", "Early Recovery", "Weekend Peak"],
+        "Days": [540, 244, 29, 276],
+        "Avg Traffic": ["777,579", "489,224", "858,604", "1,015,798"],
+        "Weekend %": ["0.0%", "14.8%", "20.7%", "97.5%"],
+        "Holiday %": ["7.2%", "2.0%", "100.0%", "11.6%"],
     })
-    st.dataframe(cluster_profile, use_container_width=True, hide_index=True)
 
-    st.info(
-        "**Silhouette Score (k=4): 0.34** — moderate cluster separation. "
-        "The 4 clusters map cleanly onto distinct travel demand regimes: "
-        "Holiday Peak · Weekend Peak · Regular Weekday · Early Recovery."
-    )
+    # Color-coded profile cards
+    profile_colors = [COLORS["primary"], COLORS["success"], COLORS["purple"], COLORS["secondary"]]
+    profile_cols = st.columns(4)
+    for i, row in cluster_profiles.iterrows():
+        with profile_cols[i]:
+            st.markdown(
+                f"<div style='background-color:{profile_colors[i]}20; "
+                f"border-left: 4px solid {profile_colors[i]}; "
+                f"padding: 15px; border-radius: 5px; margin-bottom: 10px;'>"
+                f"<h4 style='color:{profile_colors[i]}; margin:0;'>{row['Cluster']}</h4>"
+                f"<p style='margin:5px 0;'><b>{row['Days']}</b> days</p>"
+                f"<p style='margin:5px 0;'>Avg: <b>{row['Avg Traffic']}</b></p>"
+                f"<p style='margin:5px 0;'>Weekend: {row['Weekend %']}</p>"
+                f"<p style='margin:5px 0;'>Holiday: {row['Holiday %']}</p>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
 
+    st.dataframe(cluster_profiles, use_container_width=True, hide_index=True)
 
-# ── Tab 6: Association Rules ──────────────────────────────────
+    # Cluster scatter visualisation from data
+    st.markdown("#### Cluster Distribution (Approximation)")
+    if "Traffic_Level" in fdf.columns:
+        # Assign cluster labels based on Festival_Type heuristic for visualisation
+        def assign_cluster(row):
+            if row["Is_Holiday"] == 1 and row["Is_Weekend"] == 0:
+                return "Early Recovery"
+            elif row["Is_Weekend"] == 1:
+                return "Weekend Peak"
+            elif row["Year"] == 2023 and row["Month"] <= 6:
+                return "Regular Weekday"
+            else:
+                return "Holiday Peak"
+
+        vis_df = fdf.copy()
+        vis_df["Cluster"] = vis_df.apply(assign_cluster, axis=1)
+        cluster_color_map = {
+            "Holiday Peak": COLORS["primary"],
+            "Regular Weekday": COLORS["success"],
+            "Early Recovery": COLORS["purple"],
+            "Weekend Peak": COLORS["secondary"],
+        }
+        fig_cluster = px.scatter(
+            vis_df, x="Date", y="Total",
+            color="Cluster",
+            color_discrete_map=cluster_color_map,
+            title="Traffic by Cluster Assignment (Approximation)",
+            opacity=0.6,
+        )
+        fig_cluster.update_layout(template="plotly_white", height=450)
+        st.plotly_chart(fig_cluster, use_container_width=True)
+
+# ============================================================
+# TAB 6 - ASSOCIATION RULES
+# ============================================================
 with tab6:
-    st.subheader("Association Rule Mining — Apriori Algorithm")
-    st.markdown(
-        "**Settings:** `min_support=0.05` · `min_confidence=0.60` · sorted by **lift**  \n"
-        "**Transactions:** Each day = 1 transaction. "
-        "Items: Season, Weekend/Weekday, Holiday type, Traffic level, Year."
-    )
+    st.header("Association Rule Mining (NB05 Results)")
 
-    # Hardcoded top rules from Notebook 05
-    rules_data = pd.DataFrame({
-        "Antecedents":  [
-            "{Weekend, Year2025}",
-            "{Easter}",
-            "{Winter, Year2023}",
-            "{CNY_Holiday}",
-            "{Weekend, Year2024}",
-            "{GoldenWeek_Holiday}",
-            "{Summer, Weekend}",
-            "{Spring, Easter}",
-            "{Autumn, GoldenWeek_Holiday}",
-            "{Year2025, Weekday}",
-            "{Winter, Year2024}",
-            "{Weekend, Spring}",
-            "{Year2023, Weekday}",
-            "{Autumn, Year2024}",
-            "{Summer, Year2025}"
-        ],
-        "Consequents": [
-            "{VeryHighTraffic}",
-            "{VeryHighTraffic}",
-            "{LowTraffic}",
-            "{VeryHighTraffic}",
-            "{HighTraffic}",
-            "{VeryHighTraffic}",
-            "{HighTraffic}",
-            "{VeryHighTraffic}",
-            "{VeryHighTraffic}",
-            "{HighTraffic}",
-            "{MediumTraffic}",
-            "{HighTraffic}",
-            "{LowTraffic}",
-            "{HighTraffic}",
-            "{VeryHighTraffic}"
-        ],
-        "Support":    [0.12, 0.04, 0.07, 0.04, 0.14, 0.05, 0.11, 0.03, 0.05,
-                       0.18, 0.08, 0.10, 0.09, 0.12, 0.08],
-        "Confidence": [0.99, 0.97, 0.61, 0.95, 0.88, 0.91, 0.82, 0.94, 0.89,
-                       0.76, 0.68, 0.79, 0.63, 0.81, 0.85],
-        "Lift":       [3.51, 3.44, 5.82, 3.37, 3.12, 3.23, 2.91, 3.33, 3.16,
-                       2.70, 2.41, 2.80, 2.24, 2.88, 3.01]
-    })
+    # Top 20 rules hardcoded
+    rules_data = [
+        {"Antecedents": "{Weekend, Year2025}", "Consequent": "{VeryHighTraffic}", "Support": 0.088, "Confidence": 0.952, "Lift": 4.114},
+        {"Antecedents": "{VeryHighTraffic, Year2025}", "Consequent": "{Weekend}", "Support": 0.088, "Confidence": 0.931, "Lift": 3.557},
+        {"Antecedents": "{Weekend, Spring}", "Consequent": "{VeryHighTraffic}", "Support": 0.065, "Confidence": 0.900, "Lift": 3.889},
+        {"Antecedents": "{Weekend, Autumn}", "Consequent": "{VeryHighTraffic}", "Support": 0.058, "Confidence": 0.889, "Lift": 3.841},
+        {"Antecedents": "{Weekend, Summer}", "Consequent": "{VeryHighTraffic}", "Support": 0.066, "Confidence": 0.876, "Lift": 3.783},
+        {"Antecedents": "{VeryHighTraffic, Spring}", "Consequent": "{Weekend}", "Support": 0.065, "Confidence": 0.875, "Lift": 3.342},
+        {"Antecedents": "{VeryHighTraffic, Autumn}", "Consequent": "{Weekend}", "Support": 0.058, "Confidence": 0.870, "Lift": 3.321},
+        {"Antecedents": "{Weekend, Year2024}", "Consequent": "{VeryHighTraffic}", "Support": 0.067, "Confidence": 0.860, "Lift": 3.717},
+        {"Antecedents": "{VeryHighTraffic, Summer}", "Consequent": "{Weekend}", "Support": 0.066, "Confidence": 0.855, "Lift": 3.266},
+        {"Antecedents": "{VeryHighTraffic, Year2024}", "Consequent": "{Weekend}", "Support": 0.067, "Confidence": 0.851, "Lift": 3.252},
+        {"Antecedents": "{Weekend, Winter}", "Consequent": "{HighTraffic}", "Support": 0.050, "Confidence": 0.833, "Lift": 2.862},
+        {"Antecedents": "{Weekend}", "Consequent": "{VeryHighTraffic}", "Support": 0.182, "Confidence": 0.833, "Lift": 3.600},
+        {"Antecedents": "{VeryHighTraffic}", "Consequent": "{Weekend}", "Support": 0.182, "Confidence": 0.788, "Lift": 3.009},
+        {"Antecedents": "{Holiday}", "Consequent": "{VeryHighTraffic}", "Support": 0.033, "Confidence": 0.750, "Lift": 3.241},
+        {"Antecedents": "{Year2023, Winter}", "Consequent": "{LowTraffic}", "Support": 0.057, "Confidence": 0.699, "Lift": 2.633},
+        {"Antecedents": "{LowTraffic, Winter}", "Consequent": "{Year2023}", "Support": 0.057, "Confidence": 0.683, "Lift": 2.359},
+        {"Antecedents": "{Year2023}", "Consequent": "{LowTraffic}", "Support": 0.120, "Confidence": 0.414, "Lift": 1.560},
+        {"Antecedents": "{LowTraffic}", "Consequent": "{Year2023}", "Support": 0.120, "Confidence": 0.452, "Lift": 1.560},
+        {"Antecedents": "{Weekday}", "Consequent": "{HighTraffic}", "Support": 0.212, "Confidence": 0.422, "Lift": 1.449},
+        {"Antecedents": "{Winter}", "Consequent": "{LowTraffic}", "Support": 0.086, "Confidence": 0.390, "Lift": 1.470},
+    ]
+    rules_df = pd.DataFrame(rules_data)
 
     # Support vs Confidence bubble chart
-    st.subheader("Support vs Confidence (bubble size = Lift)")
-    fig_bubble = px.scatter(
-        rules_data,
-        x="Support", y="Confidence",
-        size="Lift", color="Lift",
-        color_continuous_scale="RdYlGn",
-        hover_name="Antecedents",
-        hover_data={"Consequents": True, "Lift": ":.2f",
-                    "Support": ":.3f", "Confidence": ":.3f"},
-        title="Association Rules: Support vs Confidence (size = Lift)",
-        template="plotly_white",
-        labels={"Support": "Support", "Confidence": "Confidence"},
-        size_max=30
-    )
-    fig_bubble.update_layout(
-        xaxis=dict(range=[0, 0.25]),
-        yaxis=dict(range=[0.55, 1.05])
-    )
-    st.plotly_chart(fig_bubble, use_container_width=True)
+    col_r1, col_r2 = st.columns(2)
 
-    # Top rules by lift — horizontal bar chart
-    st.subheader("Top 10 Rules by Lift")
-    top10 = rules_data.nlargest(10, "Lift").copy()
-    top10["Rule"] = top10["Antecedents"] + " → " + top10["Consequents"]
+    with col_r1:
+        fig_bubble = px.scatter(
+            rules_df, x="Support", y="Confidence",
+            size="Lift", color="Lift",
+            hover_data=["Antecedents", "Consequent"],
+            title="Support vs Confidence (Bubble Size = Lift)",
+            color_continuous_scale="Viridis",
+            size_max=30,
+        )
+        fig_bubble.update_layout(template="plotly_white", height=450)
+        st.plotly_chart(fig_bubble, use_container_width=True)
 
-    fig_lift = px.bar(
-        top10.sort_values("Lift"),
-        x="Lift", y="Rule",
-        orientation="h",
-        color="Confidence",
-        color_continuous_scale="Blues",
-        title="Top 10 Association Rules by Lift",
-        template="plotly_white",
-        labels={"Lift": "Lift", "Rule": ""},
-        text="Lift"
-    )
-    fig_lift.update_traces(texttemplate="%{x:.2f}", textposition="outside")
-    fig_lift.update_layout(
-        xaxis=dict(range=[0, 7]),
-        margin=dict(l=350)
-    )
-    st.plotly_chart(fig_lift, use_container_width=True)
+    with col_r2:
+        top_lift = rules_df.nlargest(10, "Lift").copy()
+        top_lift["Rule"] = top_lift["Antecedents"] + " \u2192 " + top_lift["Consequent"]
+        top_lift = top_lift.sort_values("Lift")
+        fig_lift = px.bar(
+            top_lift, x="Lift", y="Rule", orientation="h",
+            title="Top 10 Rules by Lift",
+            color="Confidence",
+            color_continuous_scale="Reds",
+        )
+        fig_lift.update_layout(template="plotly_white", height=450)
+        st.plotly_chart(fig_lift, use_container_width=True)
 
     # Key rules highlight
-    st.subheader("🔑 Key Rules Highlighted")
-    k1, k2 = st.columns(2)
-    with k1:
+    st.markdown("#### Key Rules Highlighted")
+    key_col1, key_col2 = st.columns(2)
+
+    with key_col1:
         st.success(
-            "**{Weekend, Year2025} → {VeryHighTraffic}**  \n"
-            "Confidence: **0.99** · Lift: **3.51**  \n\n"
-            "Near-certain very high traffic on 2025 weekends — "
-            "reflecting full post-COVID normalisation and peak leisure travel demand."
-        )
-    with k2:
-        st.warning(
-            "**{Winter, Year2023} → {LowTraffic}**  \n"
-            "Confidence: **0.61** · Lift: **5.82**  \n\n"
-            "Highest lift rule — Winter 2023 was the initial recovery period "
-            "immediately after the January 2023 border reopening, with suppressed traffic."
+            "**Rule 1:** {Weekend, Year2025} \u2192 {VeryHighTraffic}\n\n"
+            "- Confidence: **95.2%**\n"
+            "- Lift: **4.114**\n"
+            "- Interpretation: Weekend days in 2025 almost certainly see very high traffic."
         )
 
-    # Interactive rule explorer
-    st.subheader("🔍 Interactive Rule Explorer")
-    st.markdown("Filter rules by minimum confidence and lift threshold:")
+    with key_col2:
+        st.info(
+            "**Rule 2:** {Winter, Year2023} \u2192 {LowTraffic}\n\n"
+            "- Confidence: **69.9%**\n"
+            "- Lift: **2.633**\n"
+            "- Interpretation: Early reopening winter period in 2023 had notably low traffic."
+        )
 
-    col_f1, col_f2 = st.columns(2)
-    with col_f1:
-        min_conf = st.slider("Minimum Confidence", 0.60, 1.00, 0.70, step=0.01)
-    with col_f2:
-        min_lift = st.slider("Minimum Lift", 1.0, 6.0, 2.0, step=0.1)
+    # Interactive Rule Explorer
+    st.markdown("#### Interactive Rule Explorer")
+    min_conf = st.slider("Minimum Confidence", 0.0, 1.0, 0.5, 0.05, key="arm_conf")
+    min_lift = st.slider("Minimum Lift", 1.0, 5.0, 1.5, 0.1, key="arm_lift")
+    filtered_rules = rules_df[
+        (rules_df["Confidence"] >= min_conf) & (rules_df["Lift"] >= min_lift)
+    ].sort_values("Lift", ascending=False)
+    st.write(f"**{len(filtered_rules)}** rules match the criteria.")
+    st.dataframe(
+        filtered_rules.style.format({
+            "Support": "{:.3f}", "Confidence": "{:.3f}", "Lift": "{:.3f}",
+        }),
+        use_container_width=True,
+        hide_index=True,
+    )
 
-    explorer_df = rules_data[
-        (rules_data["Confidence"] >= min_conf) &
-        (rules_data["Lift"] >= min_lift)
-    ].sort_values("Lift", ascending=False).reset_index(drop=True)
+# ============================================================
+# FOOTER
+# ============================================================
+st.markdown("---")
+st.markdown("### Tool Suitability Summary")
 
-    explorer_display = explorer_df.copy()
-    explorer_display["Support"]    = explorer_display["Support"].apply(lambda x: f"{x:.3f}")
-    explorer_display["Confidence"] = explorer_display["Confidence"].apply(lambda x: f"{x:.2f}")
-    explorer_display["Lift"]       = explorer_display["Lift"].apply(lambda x: f"{x:.2f}")
-
-    st.markdown(f"**{len(explorer_display)} rules** match your filters:")
-    st.dataframe(explorer_display, use_container_width=True, hide_index=True)
-
-    if len(explorer_display) == 0:
-        st.info("No rules match the current filters. Try lowering the thresholds.")
-
-
-# ── Tool Suitability Note ─────────────────────────────────────
-st.divider()
-st.subheader("⚠️ Tool Suitability Notes")
-st.markdown(
-    "This project is built for **educational and portfolio purposes**. "
-    "Some tools used here would require different choices in a production environment:"
-)
-
-tool_df = pd.DataFrame({
-    "Tool":                   ["Streamlit", "scikit-learn", "efficient-apriori",
-                               "pandas (in-memory)", "matplotlib / seaborn / Plotly"],
-    "Used For":               ["Interactive dashboard", "Classification & Regression",
-                               "Apriori association rules", "Data processing",
-                               "Static & interactive visualisations"],
-    "Production Consideration": [
-        "✅ Rapid prototyping · ⚠️ Not designed for enterprise-scale traffic",
-        "✅ Education · ⚠️ Production pipelines typically use MLflow + model registry",
-        "✅ Small-medium datasets · ⚠️ Use Spark FP-Growth for large-scale mining",
-        "✅ Up to ~1M rows · ⚠️ Use Spark / Dask for large-scale data",
-        "✅ Publication-quality plots · ⚠️ Use D3.js / Tableau for enterprise dashboards"
-    ]
+tool_table = pd.DataFrame({
+    "Analysis Task": [
+        "Day-type Classification",
+        "Traffic Volume Prediction",
+        "Traffic Pattern Discovery",
+        "Factor Association Mining",
+    ],
+    "Tool": [
+        "Decision Tree / Logistic Regression",
+        "Linear Regression",
+        "K-Means Clustering",
+        "Apriori Association Rules",
+    ],
+    "Suitability": [
+        "High - DT achieves 89.9% accuracy with good generalisation",
+        "Moderate - R\u00b2=0.74 but multicollinearity limits reliability",
+        "Moderate - Silhouette 0.37 reveals meaningful but overlapping groups",
+        "High - Lift values up to 4.1 reveal strong non-obvious patterns",
+    ],
+    "Key Insight": [
+        "Year and DayOfWeek are the strongest predictors",
+        "Year trend (+151K) and weekends (+88K) dominate",
+        "4 distinct traffic regimes identified",
+        "Weekends in 2025 almost guarantee very high traffic",
+    ],
 })
-st.dataframe(tool_df, use_container_width=True, hide_index=True)
+st.dataframe(tool_table, use_container_width=True, hide_index=True)
 
-st.caption(
-    "🚂 Hong Kong Cross-Border Passenger Traffic Analysis · "
-    "Vila Chung · HKU BASc Social Data Science · 2025 · "
-    "Data source: HK Immigration Department · data.gov.hk · Educational use only."
+st.markdown(
+    "<div style='text-align:center; color:grey; padding:20px;'>"
+    "<b>Vila Chung</b> | HKU BASc Social Data Science | 2025<br>"
+    "Data source: <a href='https://data.gov.hk' target='_blank'>data.gov.hk</a>"
+    "</div>",
+    unsafe_allow_html=True,
 )
