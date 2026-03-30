@@ -104,7 +104,7 @@ else:
 # TITLE
 # ============================================================
 st.title("\U0001f682 Hong Kong Cross-Border Passenger Traffic Analytics")
-st.caption("Interactive dashboard for post-reopening (2023-01-08 onwards) cross-border traffic analysis")
+st.caption("Interactive dashboard for post-reopening (2023-01-08 to 2025-12-31) cross-border traffic analysis")
 
 # ============================================================
 # KPI ROW
@@ -156,7 +156,7 @@ with tab1:
         #### At a Glance
 
         This dashboard analyses **daily cross-border passenger traffic** between
-        Hong Kong and Mainland China from **8 January 2023 to 8 March 2025**.
+        Hong Kong and Mainland China from **8 January 2023 to 31 December 2025**.
 
         - **Why this period?** Hong Kong's border with the Mainland fully reopened
           on 8 January 2023 after nearly three years of COVID restrictions.
@@ -193,8 +193,9 @@ with tab1:
           the single biggest short-term driver.
         - **Public holidays** — especially when Hong Kong and Mainland holidays
           overlap — produce the highest single-day peaks.
-        - **Chinese New Year** and **Golden Week** (Mainland National Day, 1–7 Oct)
-          are the most impactful festival periods.
+        - Festival periods like **Chinese New Year**, **Golden Week** (Mainland
+          National Day, 1–7 Oct), and **Easter** consistently rank among the
+          highest-traffic days.
         """
     )
 
@@ -795,14 +796,14 @@ with tab5:
     st.info(
         "**Takeaway:** The four groups tell a clear story:\n\n"
         "- **Weekend Peak** has the highest average traffic (~1.02M) — "
-        "nearly all weekend days land here.\n"
-        "- **Early Recovery** captures the 29 days right after the border "
-        "reopened (Jan–Feb 2023) when holiday traffic was unusually high "
-        "relative to the still-recovering baseline.\n"
-        "- **Holiday Peak** (540 days) forms the largest group — a mix of "
-        "regular and holiday-adjacent weekdays with moderate-to-high traffic.\n"
+        "nearly all weekend days (97.5%) land here.\n"
+        "- **Early Recovery** is a small group of just 29 days, all holidays "
+        "(100%), with high average traffic (~859K). These are the special "
+        "holiday days during the early post-reopening period.\n"
+        "- **Holiday Peak** (540 days) is the largest group — mostly weekdays "
+        "with moderate traffic (~778K), forming the backbone of daily crossings.\n"
         "- **Regular Weekday** (244 days) represents the baseline: ordinary "
-        "working days with the lowest traffic."
+        "working days with the lowest average traffic (~489K)."
     )
 
     # Cluster scatter visualisation from data
@@ -977,7 +978,7 @@ tool_table = pd.DataFrame({
     "Suitability": [
         "High - DT achieves 89.9% accuracy with good generalisation",
         "Moderate - R\u00b2=0.74 but multicollinearity limits reliability",
-        "Moderate - Silhouette 0.37 reveals meaningful but overlapping groups",
+        "Moderate - Silhouette 0.28 reveals meaningful but overlapping groups",
         "High - Lift values up to 4.1 reveal strong non-obvious patterns",
     ],
     "Key Insight": [
