@@ -26,6 +26,23 @@ A comprehensive data science project analysing daily cross-border passenger traf
 
 ## Repository Structure
 
+### Branch Overview
+
+| Branch | Purpose |
+|--------|---------|
+| `main` | Stable production branch — app.py, README, requirements.txt, processed data |
+| `dev` | Integration branch — merges feature branches before promoting to main |
+| `raw` | Raw data ingestion only |
+| `data` | Data pipeline and processed CSV |
+| `feature/data-cleaning` | NB01: Data cleaning and feature engineering |
+| `feature/eda-statistics` | NB02: Exploratory data analysis and statistical tests |
+| `feature/classification` | NB03: Decision Tree & Logistic Regression |
+| `feature/regression` | NB04: Multiple Linear Regression |
+| `feature/clustering-arm` | NB05: K-Means Clustering & Association Rule Mining |
+| `feature/app-dashboard` | Streamlit dashboard (app.py) |
+
+### File Structure (main branch)
+
 ```
 hk-passenger-traffic-analysis/
 |
