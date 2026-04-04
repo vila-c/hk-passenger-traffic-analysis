@@ -8,7 +8,7 @@
 [![Data](https://img.shields.io/badge/Records-56%2C424+-green)]()
 [![Dashboard](https://img.shields.io/badge/Live_Demo-Streamlit-FF4B4B?logo=streamlit)](https://hk-passenger-traffic-analysis.streamlit.app/)
 
-A comprehensive data science project analysing daily cross-border passenger traffic at Hong Kong's 17 border control points from 2021 to 2025, following the CRISP-DM methodology. The analysis covers the full post-COVID recovery trajectory -- from near-zero crossings during border closures through the reopening on 8 January 2023 to present-day travel patterns.
+A comprehensive data science project analysing daily cross-border passenger traffic at Hong Kong's 17 border control points from 2021 to early 2026, following the CRISP-DM methodology. The analysis covers the full post-COVID recovery trajectory -- from near-zero crossings during border closures through the reopening on 8 January 2023 to present-day travel patterns. Models are trained on 2023–2025 data; 2026 data (partial year) is included in exploratory analysis.
 
 **Author:** Vila Chung, BASc Social Data Science, The University of Hong Kong, 2025
 
@@ -17,11 +17,12 @@ A comprehensive data science project analysing daily cross-border passenger traf
 ## Key Findings
 
 - **Post-reopening recovery is strong.** Year-over-year growth is significant, with the `Year` feature contributing +151,639 daily passengers per year in regression.
-- **Weekends dominate traffic.** Weekend days average +87,662 more passengers than weekdays; the rule `{Weekend, Year2025} -> {VeryHighTraffic}` holds with 95.2% confidence.
-- **Dual holidays amplify surges.** When both Hong Kong and Mainland holidays overlap (`Is_Both_Holiday`), traffic peaks are markedly higher than single-region holidays alone.
-- **Winter 2023 was still in recovery.** The association rule `{Winter, Year2023} -> {LowTraffic}` (conf=0.699) captures the early reopening period before travel fully normalised.
+- **Weekends dominate traffic.** The regression coefficient for `Is_Weekend` is +87,662 (standardised), and the association rule `{Weekend, Year2025} -> {VeryHighTraffic}` holds with 95.2% confidence.
+- **HK-only holidays see the highest traffic.** Days that are holidays only in Hong Kong (e.g. Easter) average ~1,025,827 passengers — higher than Mainland-only holidays (~865,163) or dual-overlap days (~858,604). The `Is_Both_Holiday` feature has a weaker signal than expected, likely because most dual-overlap days fall during CNY when some travellers have already departed.
+- **Winter 2023 was still in recovery.** The association rule `{Winter, Year2023} -> {LowTraffic}` (conf=0.70, lift=2.63) captures the early reopening period before travel fully normalised.
 - **Decision Tree outperforms Logistic Regression** for classifying high-traffic days (89.9% accuracy, AUC 0.926 vs. 82.1% accuracy, AUC 0.925).
-- **Four distinct traffic regimes exist:** Holiday Peak, Weekend Peak, Regular Weekday, and Early Recovery clusters identified via K-Means (k=4, Silhouette=0.2845).
+- **Year and Day of Week are the strongest predictors.** Decision Tree feature importance: `Year` (37.5%), `DayOfWeek` (30.2%), `Quarter` (14.2%) — together accounting for ~82% of splits.
+- **Four distinct traffic regimes exist:** Holiday Peak, Weekend Peak, Regular Weekday, and Early Recovery clusters identified via K-Means (k=4, Silhouette=0.284).
 
 ---
 
@@ -105,8 +106,8 @@ This project follows the six phases of the **Cross-Industry Standard Process for
 |--------|-------|
 | R-squared (test) | 0.7423 |
 | RMSE | 111,145 |
-| Strongest positive predictor | `Year` (+151,639 per year) |
-| Second strongest | `Is_Weekend` (+87,662) |
+| Strongest coefficient | `Year` (+151,639 standardised) |
+| Second strongest coefficient | `Is_Weekend` (+87,662 standardised) |
 
 > **Note:** Negative coefficients for `Is_CNY` and `Is_GoldenWeek` are artefacts of multicollinearity with the broader `Is_Holiday` feature, not genuine negative effects.
 
@@ -119,7 +120,9 @@ This project follows the six phases of the **Cross-Industry Standard Process for
 | 2 | Regular Weekday | 244 | Baseline weekday patterns |
 | 3 | Early Recovery | 29 | Low-traffic early reopening days (Jan--Feb 2023) |
 
-K-Means k=4, Silhouette Score = 0.2845
+K-Means k=4, Silhouette Score = 0.284
+
+> **Why k=4 instead of k=3?** Although k=3 yields a higher Silhouette score (0.368 vs 0.284), k=4 was chosen for **interpretability**: the fourth cluster separates the 29-day Early Recovery period (immediately after border reopening) from the larger Holiday Peak group, providing a more meaningful segmentation for policy analysis.
 
 ### Association Rule Mining (NB05)
 
@@ -127,8 +130,8 @@ K-Means k=4, Silhouette Score = 0.2845
 
 | Rule | Confidence | Lift |
 |------|-----------|------|
-| {Weekend, Year2025} -> {VeryHighTraffic} | 0.952 | 4.114 |
-| {Winter, Year2023} -> {LowTraffic} | 0.699 | 2.633 |
+| {Weekend, Year2025} -> {VeryHighTraffic} | 0.95 | 4.11 |
+| {Winter, Year2023} -> {LowTraffic} | 0.70 | 2.63 |
 
 ---
 
@@ -153,7 +156,7 @@ A key contribution of this project is the dual-region holiday feature set, captu
 | `Is_GoldenWeek` | Mainland Golden Week (National Day, 1--7 October) | 21 days |
 | `Is_Easter` | Easter holiday period (Good Friday through Easter Monday) | 12 days |
 
-The `Is_Both_Holiday` feature captures dual-holiday surges where travellers from both sides of the border are on holiday simultaneously, producing the highest traffic volumes in the dataset.
+The `Is_Both_Holiday` feature captures days when both regions are on holiday simultaneously. In practice, HK-only holidays show the highest average traffic (~1.03M), followed by Mainland-only (~865K) and dual-overlap (~859K). The dual-overlap signal is weaker than expected, likely because most overlapping days fall within the CNY period when some travellers have already departed.
 
 ---
 
