@@ -191,11 +191,12 @@ with tab1:
         - Traffic has grown strongly each year as cross-border travel normalised.
         - **Weekends** average about **{_gap:.0f}%** more passengers than weekdays —
           the single biggest short-term driver.
-        - **Public holidays** — especially when Hong Kong and Mainland holidays
-          overlap — produce the highest single-day peaks.
+        - **Public holidays** drive peak days. HK-only holidays (e.g. Easter)
+          actually see the highest averages, followed by Mainland-only holidays
+          and dual-overlap days.
         - Festival periods like **Chinese New Year**, **Golden Week** (Mainland
           National Day, 1–7 Oct), and **Easter** consistently rank among the
-          highest-traffic days.
+          highest-traffic periods.
         """
     )
 
@@ -634,10 +635,10 @@ with tab4:
     st.info(
         "**Reading the coefficients:** Each bar shows how much a feature shifts "
         "the predicted passenger count (after standardisation). "
-        "**Year (+151,639)** is by far the strongest: on average, each successive "
-        "year adds ~152K daily passengers, reflecting the post-COVID recovery. "
-        "**Is_Weekend (+87,662)** is the second strongest — weekends consistently "
-        "bring ~88K extra travellers.\n\n"
+        "**Year (+151,639)** is by far the strongest, reflecting the post-COVID "
+        "recovery trend. "
+        "**Is_Weekend (+87,662)** is the second strongest. Note: these are "
+        "standardised regression coefficients, not raw passenger differences.\n\n"
         "The negative bars for Is_CNY and Is_GoldenWeek do **not** mean these "
         "festivals reduce traffic. They are a statistical artefact: because "
         "CNY and Golden Week days are *already* counted under the broader "
@@ -755,11 +756,12 @@ with tab5:
         st.plotly_chart(fig_sil, use_container_width=True)
 
     st.caption(
-        "**How we chose 4 groups:** The left chart (Elbow) shows that adding "
-        "more groups beyond 4 gives diminishing returns. The right chart "
-        "(Silhouette) measures how well-separated the groups are — higher is "
-        "better. We picked k=4 as a good balance between simplicity and "
-        "meaningfulness."
+        "**How we chose 4 groups:** The Silhouette chart shows k=3 actually "
+        "scores higher (0.368 vs 0.284 for k=4). However, k=4 was chosen for "
+        "**interpretability**: the fourth cluster isolates the 29-day Early "
+        "Recovery period right after the border reopened, which has distinct "
+        "characteristics (100% holidays, high traffic). Merging it into a "
+        "larger group would lose this insight."
     )
 
     # Cluster Profiles
@@ -919,16 +921,16 @@ with tab6:
     with key_col1:
         st.success(
             "**Rule 1:** {Weekend, Year2025} \u2192 {VeryHighTraffic}\n\n"
-            "- Confidence: **95.2%**\n"
-            "- Lift: **4.114**\n"
+            "- Confidence: **95.2%** (0.95)\n"
+            "- Lift: **4.11**\n"
             "- Interpretation: Weekend days in 2025 almost certainly see very high traffic."
         )
 
     with key_col2:
         st.info(
             "**Rule 2:** {Winter, Year2023} \u2192 {LowTraffic}\n\n"
-            "- Confidence: **69.9%**\n"
-            "- Lift: **2.633**\n"
+            "- Confidence: **69.9%** (0.70)\n"
+            "- Lift: **2.63**\n"
             "- Interpretation: Early reopening winter period in 2023 had notably low traffic."
         )
 
@@ -978,12 +980,12 @@ tool_table = pd.DataFrame({
     "Suitability": [
         "High - DT achieves 89.9% accuracy with good generalisation",
         "Moderate - R\u00b2=0.74 but multicollinearity limits reliability",
-        "Moderate - Silhouette 0.28 reveals meaningful but overlapping groups",
+        "Moderate - Silhouette 0.284 (k=4) reveals meaningful but overlapping groups",
         "High - Lift values up to 4.1 reveal strong non-obvious patterns",
     ],
     "Key Insight": [
         "Year and DayOfWeek are the strongest predictors",
-        "Year trend (+151K) and weekends (+88K) dominate",
+        "Year trend (coeff +151K) and weekends (coeff +88K) dominate",
         "4 distinct traffic regimes identified",
         "Weekends in 2025 almost guarantee very high traffic",
     ],
