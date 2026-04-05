@@ -257,10 +257,10 @@ The interactive dashboard (`app.py`) provides stakeholders with a visual interfa
 | Hong Kong | 2024 | [gov.hk/holiday/2024](https://www.gov.hk/en/about/abouthk/holiday/2024.htm) |
 | Hong Kong | 2025 | [gov.hk/holiday/2025](https://www.gov.hk/en/about/abouthk/holiday/2025.htm) |
 | Hong Kong | 2026 | [gov.hk/holiday/2026](https://www.gov.hk/en/about/abouthk/holiday/2026.htm) |
-| Mainland China | 2023 | [english.www.gov.cn](https://english.www.gov.cn/) |
-| Mainland China | 2024 | [english.www.gov.cn](https://english.www.gov.cn/) |
-| Mainland China | 2025 | [english.www.gov.cn](https://english.www.gov.cn/) |
-| Mainland China | 2026 | [english.www.gov.cn](https://english.www.gov.cn/) |
+| Mainland China | 2023 | [english.www.gov.cn](https://english.www.gov.cn/policies/latestreleases/202212/09/content_WS63920eafc6d0a757729e422c.html) |
+| Mainland China | 2024 | [english.www.gov.cn](https://english.www.gov.cn/policies/featured/202411/12/content_WS6733220fc6d0868f4e8ecda4.html) |
+| Mainland China | 2025 | [english.www.gov.cn](https://english.www.gov.cn/policies/featured/202411/12/content_WS6733220fc6d0868f4e8ecda4.html) |
+| Mainland China | 2026 | [english.www.gov.cn](https://english.www.gov.cn/policies/featured/202411/12/content_WS6733220fc6d0868f4e8ecda4.html) |
 
 ---
 
