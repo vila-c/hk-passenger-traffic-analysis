@@ -164,7 +164,7 @@ The `Is_Both_Holiday` feature captures days when both regions are on holiday sim
 
 - **Raw records:** 56,424+ daily passenger traffic entries across 17 control points
 - **Post-reopening dataset:** 1,156 rows (2023-01-08 to 2026-03-08), 21 columns
-- **Source:** [Hong Kong Immigration Department via data.gov.hk](https://data.gov.hk/en-data/dataset/hk-immd-set4-statistics-daily-passenger-traffic)
+- **Source:** [Hong Kong Immigration Department via data.gov.hk](https://data.gov.hk/en-data/dataset/hk-immd-set5-statistics-daily-passenger-traffic)
 
 The 17 control points include airports, land crossings (Lo Wu, Lok Ma Chau), sea ports, and the Hong Kong-Zhuhai-Macao Bridge.
 
@@ -243,7 +243,7 @@ The interactive dashboard (`app.py`) provides stakeholders with a visual interfa
 
 ## Data Source
 
-**Traffic dataset:** Statistics on Daily Passenger Traffic, published by the **Hong Kong Immigration Department** and distributed via [data.gov.hk](https://data.gov.hk/en-data/dataset/hk-immd-set4-statistics-daily-passenger-traffic). Provided under the [Hong Kong Government Open Data Terms of Use](https://data.gov.hk/en/terms-and-conditions).
+**Traffic dataset:** Statistics on Daily Passenger Traffic, published by the **Hong Kong Immigration Department** and distributed via [data.gov.hk](https://data.gov.hk/en-data/dataset/hk-immd-set5-statistics-daily-passenger-traffic). Provided under the [Hong Kong Government Open Data Terms of Use](https://data.gov.hk/en/terms-and-conditions).
 
 **Mainland China public holiday schedules:** Official announcements published by the **State Council of the People's Republic of China** via [english.www.gov.cn](https://english.www.gov.cn/). Holiday dates for 2023–2026 were manually compiled from annual government notices.
 
