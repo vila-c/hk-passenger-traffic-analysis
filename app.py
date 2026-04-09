@@ -80,12 +80,27 @@ df = load_data()
 # SIDEBAR FILTERS
 # ============================================================
 st.sidebar.title("\U0001f50d Filters")
+st.sidebar.markdown(
+    "**How to use these filters:**\n\n"
+    "**Step 1.** Select one or more **Years** to compare across time "
+    "(e.g. pick only 2025 to see the latest patterns).\n\n"
+    "**Step 2.** Select one or more **Day Types** to focus on specific "
+    "categories (e.g. pick only CNY and Easter to compare festivals).\n\n"
+    "All six tabs update automatically as you change filters."
+)
+st.sidebar.markdown("---")
 
 all_years = sorted(df["Year"].unique())
-sel_years = st.sidebar.multiselect("Year", all_years, default=all_years)
+sel_years = st.sidebar.multiselect(
+    "\u2460 Year", all_years, default=all_years,
+    help="Select which years to include. All are selected by default."
+)
 
 all_day_types = sorted(df["Festival_Type"].unique())
-sel_day_types = st.sidebar.multiselect("Day Type", all_day_types, default=all_day_types)
+sel_day_types = st.sidebar.multiselect(
+    "\u2461 Day Type", all_day_types, default=all_day_types,
+    help="Filter by day category: CNY, Easter, Golden Week, Other Holiday, Regular Weekend, or Weekday."
+)
 
 mask = df["Year"].isin(sel_years) & df["Festival_Type"].isin(sel_day_types)
 fdf = df[mask].copy()
@@ -248,6 +263,11 @@ with tab1:
         )
         fig_dow.update_layout(template="plotly_white", height=400, showlegend=False)
         st.plotly_chart(fig_dow, use_container_width=True)
+        st.caption(
+            "**Reading this chart:** Taller bars = more passengers on that day. "
+            "Saturday and Sunday are clearly the busiest days, driven by leisure "
+            "and shopping trips across the border."
+        )
 
     with col_b:
         # Year-over-year summary
@@ -313,6 +333,11 @@ with tab2:
             template="plotly_white", height=400,
         )
         st.plotly_chart(fig_fest, use_container_width=True)
+        st.caption(
+            "**Reading this chart:** Longer bars = more passengers. The thin lines "
+            "extending from each bar show the standard deviation (how much traffic "
+            "varies day to day within that category)."
+        )
 
     with col_h2:
         monthly = fdf.groupby(["Year", "Month"])["Total"].mean().reset_index()
@@ -328,6 +353,11 @@ with tab2:
             xaxis=dict(dtick=1),
         )
         st.plotly_chart(fig_monthly, use_container_width=True)
+        st.caption(
+            "**Reading this chart:** Each coloured line is one year. Lines higher "
+            "on the chart = more passengers. If the 2025 line sits above the 2024 "
+            "line, it means traffic grew year-over-year for that month."
+        )
 
     st.info(
         "**Takeaway:** Regular weekdays see the lowest traffic. Weekends alone "
@@ -428,6 +458,12 @@ with tab3:
             template="plotly_white", height=380,
         )
         st.plotly_chart(fig_radar, use_container_width=True)
+        st.caption(
+            "**Reading this chart:** Each axis is a performance metric. "
+            "The model that covers a larger area performs better overall. "
+            "The blue shape (Decision Tree) is larger than orange (Logistic "
+            "Regression) on most axes."
+        )
 
     st.info(
         "**Takeaway:** The Decision Tree correctly classifies about **90%** of days. "
@@ -504,7 +540,17 @@ with tab3:
     # Interactive Predictor
     st.markdown("---")
     st.markdown("#### Interactive Traffic Predictor")
-    st.caption("Adjust the features below to get a predicted traffic level (based on Decision Tree logic).")
+    st.markdown(
+        "**How to use this predictor:**\n\n"
+        "**Step 1.** Set the **Year**, **Month**, **Day of Week**, and **Quarter** "
+        "in the first two columns.\n\n"
+        "**Step 2.** Check the relevant **holiday boxes** in the third column if the "
+        "day falls on a public holiday.\n\n"
+        "**Step 3.** The gauge below will automatically update to show the predicted "
+        "traffic level (Low or High) based on your selections.\n\n"
+        "*This uses a simplified heuristic based on the Decision Tree's feature "
+        "importance weights, not the full trained model.*"
+    )
 
     pr_col1, pr_col2, pr_col3 = st.columns(3)
     with pr_col1:
@@ -738,6 +784,13 @@ with tab5:
             yaxis_title="Inertia", template="plotly_white", height=380,
         )
         st.plotly_chart(fig_elbow, use_container_width=True)
+        st.caption(
+            "**Reading this chart:** The blue line shows **Inertia** (how spread "
+            "out the data is within each cluster). Lower = tighter clusters. "
+            "As k increases, inertia always drops, but the rate of decrease slows. "
+            "The 'elbow' is where adding more clusters stops helping much. "
+            "The red dashed line marks k=4, our chosen value."
+        )
 
     with sil_col:
         fig_sil = go.Figure()
@@ -754,15 +807,13 @@ with tab5:
             yaxis_title="Score", template="plotly_white", height=380,
         )
         st.plotly_chart(fig_sil, use_container_width=True)
-
-    st.caption(
-        "**How we chose 4 groups:** The Silhouette chart shows k=3 actually "
-        "scores higher (0.368 vs 0.284 for k=4). However, k=4 was chosen for "
-        "**interpretability**: the fourth cluster isolates the 29-day Early "
-        "Recovery period right after the border reopened, which has distinct "
-        "characteristics (100% holidays, high traffic). Merging it into a "
-        "larger group would lose this insight."
-    )
+        st.caption(
+            "**Reading this chart:** The orange line shows **Silhouette Score** "
+            "(how well-separated the clusters are). Higher = better separation. "
+            "k=3 actually scores highest (0.368), but k=4 (0.284) was chosen "
+            "because it preserves the small but meaningful Early Recovery cluster "
+            "that would otherwise be merged away."
+        )
 
     # Cluster Profiles
     st.markdown("#### Cluster Profiles (k=4)")
@@ -900,6 +951,13 @@ with tab6:
         )
         fig_bubble.update_layout(template="plotly_white", height=450)
         st.plotly_chart(fig_bubble, use_container_width=True)
+        st.caption(
+            "**Reading this chart:** Each bubble is one rule. "
+            "X-axis = how common the pattern is (Support). "
+            "Y-axis = how reliable the pattern is (Confidence). "
+            "Bigger, brighter bubbles = stronger association (higher Lift). "
+            "The best rules sit in the top-right with large bubbles."
+        )
 
     with col_r2:
         top_lift = rules_df.nlargest(10, "Lift").copy()
@@ -913,6 +971,11 @@ with tab6:
         )
         fig_lift.update_layout(template="plotly_white", height=450)
         st.plotly_chart(fig_lift, use_container_width=True)
+        st.caption(
+            "**Reading this chart:** Longer bars = stronger association (higher Lift). "
+            "Lift > 1 means the pattern appears more often than random chance. "
+            "The colour intensity shows Confidence (how reliable the rule is)."
+        )
 
     # Key rules highlight
     st.markdown("#### Key Rules Highlighted")
@@ -943,6 +1006,12 @@ with tab6:
 
     # Interactive Rule Explorer
     st.markdown("#### Interactive Rule Explorer")
+    st.markdown(
+        "**How to use:** Drag the sliders below to set minimum thresholds for "
+        "**Confidence** (how reliable the rule is) and **Lift** (how much "
+        "stronger the pattern is compared to random chance). "
+        "The table below will show only rules that meet both criteria."
+    )
     min_conf = st.slider("Minimum Confidence", 0.0, 1.0, 0.5, 0.05, key="arm_conf")
     min_lift = st.slider("Minimum Lift", 1.0, 5.0, 1.5, 0.1, key="arm_lift")
     filtered_rules = rules_df[
@@ -961,36 +1030,6 @@ with tab6:
 # FOOTER
 # ============================================================
 st.markdown("---")
-st.markdown("### Tool Suitability Summary")
-st.caption("A quick comparison of the four analytical methods used in this project and what each one is best at.")
-
-tool_table = pd.DataFrame({
-    "Analysis Task": [
-        "Day-type Classification",
-        "Traffic Volume Prediction",
-        "Traffic Pattern Discovery",
-        "Factor Association Mining",
-    ],
-    "Tool": [
-        "Decision Tree / Logistic Regression",
-        "Linear Regression",
-        "K-Means Clustering",
-        "Apriori Association Rules",
-    ],
-    "Suitability": [
-        "High - DT achieves 89.9% accuracy with good generalisation",
-        "Moderate - R\u00b2=0.74 but multicollinearity limits reliability",
-        "Moderate - Silhouette 0.284 (k=4) reveals meaningful but overlapping groups",
-        "High - Lift values up to 4.1 reveal strong non-obvious patterns",
-    ],
-    "Key Insight": [
-        "Year and DayOfWeek are the strongest predictors",
-        "Year trend (coeff +151K) and weekends (coeff +88K) dominate",
-        "4 distinct traffic regimes identified",
-        "Weekends in 2025 almost guarantee very high traffic",
-    ],
-})
-st.dataframe(tool_table, use_container_width=True, hide_index=True)
 
 st.markdown(
     "<div style='text-align:center; color:grey; padding:20px;'>"
