@@ -273,5 +273,5 @@ See [LICENSE](LICENSE) for details.
 
 ## Author
 
-**Vila Chung** · BASc Social Data Science · The University of Hong Kong · 2025
+**Vila Chung** · BASc Social Data Science · The University of Hong Kong · 2027
 [GitHub](https://github.com/vila-c)
