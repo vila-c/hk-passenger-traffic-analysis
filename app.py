@@ -328,7 +328,7 @@ with tab2:
                           COLORS["danger"], COLORS["purple"], COLORS["teal"]][:len(fest_stats)],
         ))
         fig_fest.update_layout(
-            title="Average Traffic by Day/Festival Type (with Std Dev)",
+            title="Average Traffic by Day Type (with Std Dev)",
             xaxis_title="Average Total Passengers",
             template="plotly_white", height=400,
         )
@@ -367,8 +367,8 @@ with tab2:
         "post-reopening recovery continued into 2025."
     )
 
-    # Festival detail table
-    st.markdown("#### Festival Detail Table")
+    # Day type detail table
+    st.markdown("#### Day Type Detail Table")
     fest_detail = fdf.groupby("Festival_Type").agg(
         Days=("Total", "count"),
         Mean=("Total", "mean"),
